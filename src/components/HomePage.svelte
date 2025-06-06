@@ -4,6 +4,7 @@
 	import { writable } from 'svelte/store';
 	import FailedNotification from './FailedNotification.svelte';
 	import { fly } from 'svelte/transition';
+	import { goto } from '$app/navigation';
 
 	let messages = [];
 	let chats = writable([]);
@@ -203,7 +204,17 @@
 	let selectedDate = ''; // will hold the selected date
 	let showMobileDrawer = false;
 
-	let posts = Array(10).fill({ title: 'Medicine Info', description: 'Post content...' });
+	let posts = Array(10).fill({
+		title: 'Medicine Info',
+		description:
+			'Lorem ipsum dolor sit amet consectetur adipisicing elit. Et consectetur asperiores autem adipisci dolorum officiis ipsam facere sed architecto dolor...'
+	});
+
+	function autoResize(e) {
+		const textarea = e.target;
+		textarea.style.height = 'auto'; // reset first
+		textarea.style.height = `${textarea.scrollHeight}px`; // then set to full content height
+	}
 </script>
 
 <FailedNotification message={failedNotificationMessage} visible={failedNotificationVisible} />
@@ -260,7 +271,17 @@
 		<div class="flex flex-1 flex-col overflow-auto bg-white dark:bg-gray-800">
 			<!-- Header -->
 			<div class="flex items-center justify-between bg-white px-6 py-4 dark:bg-gray-800">
-				<h1 class="text-lg font-semibold text-gray-800 dark:text-white">Rx AI Assistant</h1>
+				<h1 class="text-lg font-semibold text-gray-800 dark:text-white">CareSnippet</h1>
+				<button
+					on:click={() => {
+						console.log('Logging In...');
+						goto('/login');
+					}}
+					class="rounded-md bg-blue-500 px-2 py-1 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 dark:text-white"
+				>
+					<i class="fas fa-user text-white"></i>
+					Login
+				</button>
 			</div>
 
 			<!-- Messages: fixed height and scrollable, centered in container -->
@@ -391,15 +412,28 @@
 			</button>
 		{/if}
 		<!-- <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Rx AI</h2> -->
-		<h2 class="text-lg font-semibold text-gray-800 dark:text-white">
+		<!-- <h2 class="text-lg font-semibold text-gray-800 dark:text-white">
 			{isMobileView === 'classical' ? 'Classical View' : 'Assisted View'}
-		</h2>
-		<button
-			on:click={() => (isMobileView = isMobileView === 'classical' ? 'assisted' : 'classical')}
-			class="rounded-md bg-blue-400 px-2 py-1 text-sm text-gray-700 hover:bg-blue-500 active:bg-blue-500 dark:text-white"
-		>
-			{isMobileView === 'classical' ? 'Assisted' : 'Classical'}
-		</button>
+			CareSnippet
+		</h2> -->
+		<div class="flex items-center justify-between gap-2">
+			<button
+				on:click={() => (isMobileView = isMobileView === 'classical' ? 'assisted' : 'classical')}
+				class="rounded-md bg-blue-500 px-2 py-1 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 dark:text-white"
+			>
+				{isMobileView === 'classical' ? 'Assisted' : 'Classical'}
+			</button>
+			<button
+				on:click={() => {
+					console.log('Logging In...');
+					goto('/login');
+				}}
+				class="rounded-md bg-blue-500 px-2 py-1 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 dark:text-white"
+			>
+				<i class="fas fa-user text-white"></i>
+				Login
+			</button>
+		</div>
 	</div>
 
 	<!-- CLASSICAL VIEW -->
@@ -411,35 +445,25 @@
 					<div class="flex items-center justify-between px-4 py-3">
 						<div class="flex items-center gap-3">
 							<span class="text-sm font-semibold text-gray-800 dark:text-white"
-								>User_{index + 1}</span
+								>Post_{index + 1}</span
 							>
 						</div>
-						<i class="fas fa-ellipsis-h text-gray-500"></i>
-					</div>
-
-					<!-- Post Image -->
-					<img
-						src={`https://images.unsplash.com/photo-1748989431546-1ac17eb1f384?q=80&w=1374&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D`}
-						alt="post"
-						class="h-[50vh] w-full object-cover"
-					/>
-
-					<!-- Actions Bar -->
-					<div class="flex items-center justify-between px-4 py-2">
-						<div class="flex items-center gap-4 text-xl text-gray-600 dark:text-gray-300">
-							<i class="far fa-heart cursor-pointer hover:text-red-500"></i>
-							<i class="far fa-comment cursor-pointer hover:text-blue-500"></i>
-							<i class="far fa-paper-plane cursor-pointer hover:text-green-500"></i>
-						</div>
+						<!-- <i class="fas fa-ellipsis-h text-gray-500"></i> -->
 						<i
 							class="far fa-bookmark cursor-pointer text-gray-600 hover:text-yellow-500 dark:text-gray-300"
 						></i>
 					</div>
 
-					<!-- Caption -->
-					<div class="px-4 pb-4 text-sm text-gray-700 dark:text-gray-200">
-						<span class="font-semibold">User_{index + 1}</span>
-						{post.description}
+					<!-- Post Image -->
+					<img src="/img.jpeg" alt="post" class="h-[40vh] w-full object-cover" />
+
+					<!-- Actions Bar -->
+					<div class="flex items-center justify-between px-3 py-2">
+						<!-- Caption -->
+						<div class="text-gray-700 dark:text-gray-200">
+							<span class="font-bold">Post_{index + 1}</span>
+							{post.description}
+						</div>
 					</div>
 				</div>
 			{/each}
@@ -461,21 +485,43 @@
 			</div>
 
 			<!-- Input -->
-			<div class="flex items-center p-2 mb-2">
-				<input
+			<div class="mb-3 flex flex-col items-center p-2">
+				<!-- <input
 					type="text"
 					bind:value={userInput}
 					placeholder="Ask something..."
 					on:keydown={(e) => e.key === 'Enter' && sendMessage()}
-					class="flex-1 rounded-full focus:ring-0 active:ring-0 px-3 py-3 text-sm dark:bg-gray-800 dark:text-white"
-				/>
-				<button
-					on:click={sendMessage}
-					aria-label="send message button"
-					class="ml-2 rounded-full bg-blue-500 px-3 py-2 text-white"
+					class="flex-1 rounded-3xl px-3 py-6 focus:ring-0 active:ring-0 dark:bg-gray-800 dark:text-white"
+				/> -->
+				<div
+					class="relative flex w-full flex-col items-center justify-between rounded-3xl border bg-white focus:ring-0 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 				>
-					<i class="fas fa-paper-plane"></i>
-				</button>
+					<div class="w-full">
+						<textarea
+							bind:value={userInput}
+							rows="1"
+							placeholder="Ask something..."
+							class="w-full resize-none p-3 focus:ring-0 focus:outline-none active:ring-0"
+							style="overflow: hidden;"
+							on:input={autoResize}
+							on:keydown={(e) => e.key === 'Enter' && sendMessage()}
+						></textarea>
+					</div>
+
+					<div class="flex w-full items-center justify-between gap-2 px-4 py-1">
+						<!-- Mic button -->
+						<button aria-label="mic button" class="text-gray-500 hover:text-blue-500">
+							<i class="fas fa-microphone text-xl"></i>
+						</button>
+						<button
+							on:click={sendMessage}
+							aria-label="send message button"
+							class="ml-2 rounded-full bg-blue-500 px-3.5 py-2 text-white hover:bg-blue-600 active:bg-blue-600"
+						>
+							<i class="fas fa-arrow-up"></i>
+						</button>
+					</div>
+				</div>
 			</div>
 		</div>
 
