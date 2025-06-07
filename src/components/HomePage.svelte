@@ -10,6 +10,7 @@
 
 	let messages = [];
 	let chats = writable([]);
+	let savedPosts = writable([]);
 	let userInput = '';
 	let chatContainer;
 	let activeChatId = null;
@@ -411,18 +412,17 @@
 	<!-- HEADER: Calendar + Toggle -->
 	<div class="flex items-center justify-between bg-white px-2 py-4 shadow dark:bg-gray-800">
 		<!-- Calendar (only in classical view) -->
+
+		<!-- {#if isMobileView === 'assisted'} -->
+		<button
+			aria-label="drawer button"
+			on:click={() => (showMobileDrawer = !showMobileDrawer)}
+			class="text-gray-700 dark:text-white"
+		>
+			<i class="fas fa-bars text-xl"></i>
+		</button>
+		<!-- {/if} -->
 		{#if isMobileView === 'classical'}
-			<!-- <label class="relative flex items-center">
-				<i class="fas fa-calendar-alt cursor-pointer text-xl text-blue-500"></i>
-				<input
-					type="date"
-					bind:value={selectedDate}
-					class="absolute top-0 left-0 h-full w-full cursor-pointer opacity-0"
-				/>
-				{#if selectedDate}
-					<p class="px-3 text-xs text-gray-600 dark:text-gray-300">{selectedDate}</p>
-				{/if}
-			</label> -->
 			<div class="relative flex w-fit items-center text-xs">
 				<input
 					type="text"
@@ -434,15 +434,8 @@
 				<!-- Calendar Icon -->
 				<i class="fas fa-calendar-alt pointer-events-none absolute top-4 right-3 text-gray-500"></i>
 			</div>
-
-			<!-- Display selected date range below -->
-			<!-- {#if startDate && endDate}
-					<p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
-						Selected: <strong>{startDate}</strong> to <strong>{endDate}</strong>
-					</p>
-				{/if} -->
 		{/if}
-		{#if isMobileView === 'assisted'}
+		<!-- {#if isMobileView === 'assisted'}
 			<button
 				aria-label="drawer button"
 				on:click={() => (showMobileDrawer = !showMobileDrawer)}
@@ -450,7 +443,7 @@
 			>
 				<i class="fas fa-bars text-xl"></i>
 			</button>
-		{/if}
+		{/if} -->
 		<!-- <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Rx AI</h2> -->
 		<!-- <h2 class="text-lg font-semibold text-gray-800 dark:text-white">
 			{isMobileView === 'classical' ? 'Classical View' : 'Assisted View'}
@@ -481,29 +474,21 @@
 		<div class="flex-1 overflow-y-auto bg-gray-100 p-1 dark:bg-gray-900">
 			{#each posts as post, index}
 				<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">
-					<!-- User Info -->
-					<div class="flex items-center justify-between px-4 py-3">
-						<div class="flex items-center gap-3">
-							<span class="text-sm font-semibold text-gray-800 dark:text-white"
-								>Post_{index + 1}</span
-							>
+					<!-- Post Image -->
+					<img src="/img.jpeg" alt="post" class="h-[28vh] w-full object-cover" />
+
+					<!-- Actions Bar -->
+					<div class="flex items-center justify-between px-3 pt-2">
+						<!-- Caption -->
+						<div class="text-gray-700 dark:text-gray-200">
+							<span class="font-bold">Inshort_{index + 1}</span>
+							{post.description}
 						</div>
-						<!-- <i class="fas fa-ellipsis-h text-gray-500"></i> -->
+					</div>
+					<div class="flex items-center justify-end px-4 py-2">
 						<i
 							class="far fa-bookmark cursor-pointer text-gray-600 hover:text-yellow-500 dark:text-gray-300"
 						></i>
-					</div>
-
-					<!-- Post Image -->
-					<img src="/img.jpeg" alt="post" class="h-[40vh] w-full object-cover" />
-
-					<!-- Actions Bar -->
-					<div class="flex items-center justify-between px-3 py-2">
-						<!-- Caption -->
-						<div class="text-gray-700 dark:text-gray-200">
-							<span class="font-bold">Post_{index + 1}</span>
-							{post.description}
-						</div>
 					</div>
 				</div>
 			{/each}
@@ -564,21 +549,46 @@
 				</div>
 			</div>
 		</div>
+	{/if}
 
-		{#if showMobileDrawer}
-			<div
-				in:fly={{ x: -300, duration: 300 }}
-				out:fly={{ x: -300, duration: 300 }}
-				class="absolute z-50 flex h-full w-[75%] max-w-xs flex-col bg-white shadow-lg dark:bg-gray-900"
-			>
-				<!-- Close Button -->
-				<div class="flex items-center justify-between p-4">
-					<h3 class="text-lg font-semibold text-gray-800 dark:text-white">History</h3>
-					<button on:click={() => (showMobileDrawer = false)} aria-label="close drawer">
-						<i class="fas fa-times text-lg text-gray-600 dark:text-white"></i>
-					</button>
+	{#if showMobileDrawer}
+		<div
+			in:fly={{ x: -300, duration: 300 }}
+			out:fly={{ x: -300, duration: 300 }}
+			class="absolute z-50 flex h-full w-[75%] max-w-xs flex-col bg-white shadow-lg dark:bg-gray-900"
+		>
+			<!-- Close Button -->
+			<div class="flex items-center justify-between p-4">
+				<h3 class="text-lg font-semibold text-gray-800 dark:text-white">CareSnippet</h3>
+				<button on:click={() => (showMobileDrawer = false)} aria-label="close drawer">
+					<i class="fas fa-times text-lg text-gray-600 dark:text-white"></i>
+				</button>
+			</div>
+
+			<!-- Saved Posts Section -->
+			<div class={`p-4 ${isMobileView === 'assisted' ? 'h-[40%]' : 'h-[85%]'}`}>
+				<!-- Heading: Always visible -->
+				<h4 class="mb-2 font-medium text-gray-500 dark:text-gray-300">Saved Posts</h4>
+
+				<!-- Scrollable container for posts only -->
+				<div
+					class={`${isMobileView === 'assisted' ? 'h-[calc(100%-2rem)] overflow-y-auto' : 'h-full overflow-y-auto'}`}
+				>
+					{#if $savedPosts.length > 0}
+						{#each $savedPosts as post (post.id)}
+							<div
+								class="mb-2 truncate rounded bg-gray-100 p-2 text-sm dark:bg-gray-800 dark:text-white"
+							>
+								{post.title}
+							</div>
+						{/each}
+					{:else}
+						<p class="text-sm text-gray-400 dark:text-gray-500">No saved posts yet.</p>
+					{/if}
 				</div>
+			</div>
 
+			{#if isMobileView === 'assisted'}
 				<!-- New Chat -->
 				<div class="p-4">
 					<button
@@ -617,8 +627,8 @@
 						</div>
 					{/each}
 				</div>
-			</div>
-		{/if}
+			{/if}
+		</div>
 	{/if}
 </div>
 
