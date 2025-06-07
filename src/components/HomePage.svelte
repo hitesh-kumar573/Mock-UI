@@ -408,7 +408,7 @@
 </div>
 
 <!-- MOBILE VIEW -->
-<div class="flex h-screen flex-col font-sans md:hidden">
+<div class="flex min-h-[100dvh] flex-col font-sans md:hidden">
 	<!-- HEADER: Calendar + Toggle -->
 	<div class="flex items-center justify-between bg-white px-2 py-4 shadow dark:bg-gray-800">
 		<!-- Calendar (only in classical view) -->
@@ -427,12 +427,12 @@
 				<input
 					type="text"
 					placeholder="Select range"
-					class="w-full rounded-lg border p-3 pr-6 focus:ring-0 focus:outline-none active:right-0 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+					class="w-full rounded-lg border p-2 pr-6 focus:ring-0 focus:outline-none active:right-0 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 					bind:this={calendarRef}
 					readonly
 				/>
 				<!-- Calendar Icon -->
-				<i class="fas fa-calendar-alt pointer-events-none absolute top-4 right-3 text-gray-500"></i>
+				<i class="fas fa-calendar-alt pointer-events-none absolute top-3 right-3 text-gray-500"></i>
 			</div>
 		{/if}
 		<!-- {#if isMobileView === 'assisted'}
@@ -452,7 +452,7 @@
 		<div class="flex items-center justify-between gap-2">
 			<button
 				on:click={() => (isMobileView = isMobileView === 'classical' ? 'assisted' : 'classical')}
-				class="rounded-md bg-blue-500 px-2 py-1 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 dark:text-white"
+				class="rounded-md bg-blue-500 px-2 py-2 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 dark:text-white"
 			>
 				{isMobileView === 'classical' ? 'Assisted' : 'Classical'}
 			</button>
@@ -461,7 +461,7 @@
 					console.log('Logging In...');
 					goto('/login');
 				}}
-				class="rounded-md bg-blue-500 px-2 py-1 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 dark:text-white"
+				class="rounded-md bg-blue-500 px-2 py-2 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 dark:text-white"
 			>
 				<i class="fas fa-user text-white"></i>
 				Login
@@ -497,9 +497,9 @@
 
 	<!-- ASSISTED VIEW (ChatGPT-like) -->
 	{#if isMobileView === 'assisted'}
-		<div class="flex flex-1 flex-col bg-white dark:bg-gray-900">
+		<div class="flex relative flex-col bg-white dark:bg-gray-900 flex-1">
 			<!-- Chat area -->
-			<div class="flex-1 overflow-y-auto p-2">
+			<div class="flex-1 overflow-y-auto p-2 h-auto">
 				{#each messages as msg}
 					<div
 						class={`my-2 w-fit max-w-[75%] rounded-lg p-3 text-sm ${msg.sender === 'user' ? 'ml-auto bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-white'}`}
@@ -510,7 +510,7 @@
 			</div>
 
 			<!-- Input -->
-			<div class="mb-3 flex flex-col items-center p-2">
+			<div class="mb-3 flex flex-col items-center p-2 absolute bottom-0 w-full">
 				<!-- <input
 					type="text"
 					bind:value={userInput}
@@ -555,7 +555,7 @@
 		<div
 			in:fly={{ x: -300, duration: 300 }}
 			out:fly={{ x: -300, duration: 300 }}
-			class="absolute z-50 flex h-full w-[75%] max-w-xs flex-col bg-white shadow-lg dark:bg-gray-900"
+			class="fixed top-0 left-0 z-50 flex min-h-[110dvh] w-[75%] max-w-xs flex-col bg-white shadow-lg dark:bg-gray-900"
 		>
 			<!-- Close Button -->
 			<div class="flex items-center justify-between p-4">
@@ -566,7 +566,7 @@
 			</div>
 
 			<!-- Saved Posts Section -->
-			<div class={`p-4 ${isMobileView === 'assisted' ? 'h-[40%]' : 'h-[85%]'}`}>
+			<div class={`p-4 ${isMobileView === 'assisted' ? 'h-[40%]' : 'h-full'}`}>
 				<!-- Heading: Always visible -->
 				<h4 class="mb-2 font-medium text-gray-500 dark:text-gray-300">Saved Posts</h4>
 
