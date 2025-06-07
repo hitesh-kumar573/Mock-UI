@@ -5,6 +5,8 @@
 	import FailedNotification from './FailedNotification.svelte';
 	import { fly } from 'svelte/transition';
 	import { goto } from '$app/navigation';
+	import flatpickr from 'flatpickr';
+	import 'flatpickr/dist/flatpickr.min.css';
 
 	let messages = [];
 	let chats = writable([]);
@@ -12,6 +14,26 @@
 	let chatContainer;
 	let activeChatId = null;
 	let chatIdCounter = 1;
+
+	let startDate = '';
+	let endDate = '';
+	let calendarRef;
+
+	onMount(() => {
+		flatpickr(calendarRef, {
+			mode: 'range',
+			dateFormat: 'Y-m-d',
+			onChange: function (selectedDates) {
+				if (selectedDates.length === 2) {
+					startDate = selectedDates[0].toISOString().split('T')[0];
+					endDate = selectedDates[1].toISOString().split('T')[0];
+
+					console.log('start date:', startDate);
+					console.log('end date:', endDate);
+				}
+			}
+		});
+	});
 
 	//Failed Notification
 	let failedNotificationVisible = false;
@@ -390,7 +412,7 @@
 	<div class="flex items-center justify-between bg-white px-2 py-4 shadow dark:bg-gray-800">
 		<!-- Calendar (only in classical view) -->
 		{#if isMobileView === 'classical'}
-			<label class="relative flex items-center">
+			<!-- <label class="relative flex items-center">
 				<i class="fas fa-calendar-alt cursor-pointer text-xl text-blue-500"></i>
 				<input
 					type="date"
@@ -400,7 +422,25 @@
 				{#if selectedDate}
 					<p class="px-3 text-xs text-gray-600 dark:text-gray-300">{selectedDate}</p>
 				{/if}
-			</label>
+			</label> -->
+			<div class="relative flex w-fit items-center text-xs">
+				<input
+					type="text"
+					placeholder="Select range"
+					class="w-full rounded-lg border p-3 pr-6 focus:ring-0 focus:outline-none active:right-0 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+					bind:this={calendarRef}
+					readonly
+				/>
+				<!-- Calendar Icon -->
+				<i class="fas fa-calendar-alt pointer-events-none absolute top-4 right-3 text-gray-500"></i>
+			</div>
+
+			<!-- Display selected date range below -->
+			<!-- {#if startDate && endDate}
+					<p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+						Selected: <strong>{startDate}</strong> to <strong>{endDate}</strong>
+					</p>
+				{/if} -->
 		{/if}
 		{#if isMobileView === 'assisted'}
 			<button
