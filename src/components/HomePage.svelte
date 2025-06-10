@@ -16,6 +16,10 @@
 	let activeChatId = null;
 	let chatIdCounter = 1;
 
+	//Failed Notification
+	let failedNotificationVisible = false;
+	let failedNotificationMessage = '';
+
 	let startDate = '';
 	let endDate = '';
 	let calendarRef;
@@ -35,10 +39,6 @@
 			}
 		});
 	});
-
-	//Failed Notification
-	let failedNotificationVisible = false;
-	let failedNotificationMessage = '';
 
 	function initializeNewChat() {
 		const newChat = {
@@ -435,20 +435,6 @@
 				<i class="fas fa-calendar-alt pointer-events-none absolute top-3 right-3 text-gray-500"></i>
 			</div>
 		{/if}
-		<!-- {#if isMobileView === 'assisted'}
-			<button
-				aria-label="drawer button"
-				on:click={() => (showMobileDrawer = !showMobileDrawer)}
-				class="text-gray-700 dark:text-white"
-			>
-				<i class="fas fa-bars text-xl"></i>
-			</button>
-		{/if} -->
-		<!-- <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Rx AI</h2> -->
-		<!-- <h2 class="text-lg font-semibold text-gray-800 dark:text-white">
-			{isMobileView === 'classical' ? 'Classical View' : 'Assisted View'}
-			CareSnippet
-		</h2> -->
 		<div class="flex items-center justify-between gap-2">
 			<button
 				on:click={() => (isMobileView = isMobileView === 'classical' ? 'assisted' : 'classical')}
@@ -497,9 +483,9 @@
 
 	<!-- ASSISTED VIEW (ChatGPT-like) -->
 	{#if isMobileView === 'assisted'}
-		<div class="flex relative flex-col bg-white dark:bg-gray-900 flex-1">
+		<div class="relative flex flex-1 flex-col bg-white dark:bg-gray-900">
 			<!-- Chat area -->
-			<div class="flex-1 overflow-y-auto p-2 h-auto">
+			<div class="h-auto flex-1 overflow-y-auto p-2">
 				{#each messages as msg}
 					<div
 						class={`my-2 w-fit max-w-[75%] rounded-lg p-3 text-sm ${msg.sender === 'user' ? 'ml-auto bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-white'}`}
@@ -510,14 +496,7 @@
 			</div>
 
 			<!-- Input -->
-			<div class="mb-3 flex flex-col items-center p-2 absolute bottom-0 w-full">
-				<!-- <input
-					type="text"
-					bind:value={userInput}
-					placeholder="Ask something..."
-					on:keydown={(e) => e.key === 'Enter' && sendMessage()}
-					class="flex-1 rounded-3xl px-3 py-6 focus:ring-0 active:ring-0 dark:bg-gray-800 dark:text-white"
-				/> -->
+			<div class="absolute bottom-0 mb-3 flex w-full flex-col items-center p-2">
 				<div
 					class="relative flex w-full flex-col items-center justify-between rounded-3xl border bg-white focus:ring-0 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 				>
