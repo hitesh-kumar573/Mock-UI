@@ -28,17 +28,30 @@
 	function goBackHome() {
 		goto('/'); // change '/' to your desired route if needed
 	}
+	function signUp() {
+		goto('/'); // change '/' to your desired route if needed
+	}
 </script>
 
 <div class="flex min-h-screen items-center justify-center bg-gray-100 p-4 dark:bg-gray-900">
 	<div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-lg dark:bg-gray-800">
-		<button
-			on:click={goBackHome}
-			class="absolute top-4 left-4 flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-		>
-			<i class="fas fa-arrow-left text-blue-500"></i>
-			<span>Back to Home</span>
-		</button>
+		<div class="flex items-center justify-between">
+			<button
+				on:click={goBackHome}
+				class="absolute top-4 left-4 flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+			>
+				<i class="fas fa-arrow-left text-blue-500"></i>
+				<span>Back to Home</span>
+			</button>
+			<button
+				on:click={signUp}
+				class="absolute top-4 right-4 flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+			>
+				<i class="fas fa-user-plus text-blue-500"></i>
+
+				<span>Signup</span>
+			</button>
+		</div>
 
 		<h2 class="mb-6 text-center text-2xl font-semibold dark:text-white">
 			{step === 1 ? 'Sign in with Phone' : 'Enter OTP'}
