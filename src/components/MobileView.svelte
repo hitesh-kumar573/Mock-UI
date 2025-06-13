@@ -79,40 +79,48 @@
 	}
 
 	onMount(() => {
-		const today = new Date().toISOString().split('T')[0];
-		console.log('today:', today);
+		const currentView = get(isMobileView);
 
-		startDate.set('');
-		endDate.set('');
+		if (currentView === 'classical') {
+			const today = new Date().toISOString().split('T')[0];
+			console.log('today:', today);
 
-		flatpickr(calendarRef, {
-			mode: 'range',
-			dateFormat: 'Y-m-d',
-			// defaultDate: [today, today],
-			defaultDate: null, // No default range on first load
-			allowInput: true, // So user can manually clear
-			onChange: function (selectedDates) {
-				if (selectedDates.length === 2) {
-					startDate.set(selectedDates[0].toISOString().split('T')[0]);
-					endDate.set(selectedDates[1].toISOString().split('T')[0]);
+			startDate.set('');
+			endDate.set('');
 
-					console.log('start date:', $startDate, 'end date:', $endDate);
+			flatpickr(calendarRef, {
+				mode: 'range',
+				dateFormat: 'Y-m-d',
+				maxDate: 'today',
+				// defaultDate: [today, today],
+				defaultDate: null, // No default range on first load
+				allowInput: true, // So user can manually clear
+				onChange: function (selectedDates) {
+					if (selectedDates.length === 2) {
+						startDate.set(selectedDates[0].toISOString().split('T')[0]);
+						endDate.set(selectedDates[1].toISOString().split('T')[0]);
 
-					// fetchJournalArticles(); //Fetch on date change
-				} else {
-					// User cleared the range
-					startDate.set('');
-					endDate.set('');
-					console.log('Date range cleared');
+						console.log('start date:', $startDate, 'end date:', $endDate);
+
+						// fetchJournalArticles(); //Fetch on date change
+					} else {
+						// User cleared the range
+						startDate.set('');
+						endDate.set('');
+						console.log('Date range cleared');
+					}
+					// Fetch no matter what — handles both cases
+					fetchJournalArticles();
+					fetchUserBookmarks();
 				}
-				// Fetch no matter what — handles both cases
-				fetchJournalArticles();
-				fetchUserBookmarks();
-			}
-		});
-		// Fetch on page load (no dates initially)
-		fetchJournalArticles();
-		fetchUserBookmarks();
+			});
+			// Fetch on page load (no dates initially)
+			fetchJournalArticles();
+			fetchUserBookmarks();
+		} else {
+			fetchJournalArticles();
+			fetchUserBookmarks();
+		}
 	});
 
 	function logout() {
@@ -220,7 +228,25 @@
 						return null; // skip invalid
 					}
 
-					const base64Image = await generateCardImage(item.template_url, item.article_title);
+					// Default to using article_title
+					let titleToUse = item.article_title;
+
+					// If title is too long, attempt to get it from openai_content
+					if (item.article_title.length > 50 && item.openai_content) {
+						try {
+							const parsed = JSON.parse(item.openai_content);
+							if (parsed?.title) {
+								titleToUse = parsed.title;
+								console.log(`📌 Using openai_content title for item ${index}:`, titleToUse);
+							}
+						} catch (e) {
+							console.warn(`⚠️ Failed to parse openai_content for item ${index}`, e);
+						}
+					}
+
+					console.log('title:', titleToUse);
+
+					const base64Image = await generateCardImage(item.template_url, titleToUse);
 					console.log(`✅ base64 (${index}):`, base64Image.slice(0, 50) + '...'); // partial log
 
 					return {
@@ -393,7 +419,7 @@
 			)
 		);
 
-		const loadingMsg = { sender: 'bot', text: 'Thinking...' };
+		const loadingMsg = { sender: 'bot', type: 'typing' };
 		messages.update((m) => [...m, loadingMsg]);
 		chats.update((c) =>
 			c.map((chat) =>
@@ -478,7 +504,7 @@
 			if (prev.length <= 1) {
 				failedNotificationMessage.set('At least one chat must remain.');
 				failedNotificationVisible.set(true);
-				setTimeout(() => failedNotificationVisible.set(false), 5000);
+				setTimeout(() => failedNotificationVisible.set(false), 4000);
 				return prev;
 			}
 
@@ -520,7 +546,7 @@
 			// alert('Please login to bookmark posts.');
 			failedNotificationMessage.set('Please login to bookmark posts.');
 			failedNotificationVisible.set(true);
-			setTimeout(() => failedNotificationVisible.set(false), 2000);
+			setTimeout(() => failedNotificationVisible.set(false), 4000);
 			return;
 		}
 
@@ -562,12 +588,30 @@
 				console.log(data.message);
 				fetchUserBookmarks();
 			} else {
-				alert(data.message || 'Bookmark toggle failed.');
+				// alert(data.message || 'Bookmark toggle failed.');
+				failedNotificationMessage.set(data.message || 'Bookmark toggle failed.');
+				failedNotificationVisible.set(true);
+				setTimeout(() => failedNotificationVisible.set(false), 4000);
 			}
 		} catch (err) {
 			console.error('Bookmark error:', err);
-			alert('Something went wrong.');
+			// alert('Something went wrong.');
+			failedNotificationMessage.set('Bookmark error:', err);
+			failedNotificationVisible.set(true);
+			setTimeout(() => failedNotificationVisible.set(false), 4000);
 		}
+	}
+
+	let expandedCards = new Set();
+
+	function toggleCard(index) {
+		if (expandedCards.has(index)) {
+			expandedCards.delete(index);
+		} else {
+			expandedCards.add(index);
+		}
+		// Force reactive update
+		expandedCards = new Set(expandedCards);
 	}
 </script>
 
@@ -618,8 +662,14 @@
 						on:click={() => (showDropdown = !showDropdown)}
 						class="rounded-md bg-blue-500 px-2 py-2 text-sm text-white hover:bg-blue-600"
 					>
-						<span class="flex items-center justify-between gap-1">
+						<!-- <span class="flex items-center justify-between gap-1">
 							<i class="fas fa-user text-xs text-white"></i>{$user.name}
+						</span> -->
+						<span class="flex max-w-[120px] items-center justify-between gap-1 truncate">
+							<i class="fas fa-user text-xs text-white"></i>
+							<span class="truncate overflow-hidden whitespace-nowrap">
+								{$user.name}
+							</span>
 						</span>
 					</button>
 
@@ -690,15 +740,20 @@
 								<!-- Parsed content -->
 								{#if post.openai_content}
 									{#await JSON.parse(post.openai_content) then parsed}
-										<p><strong>Objective:</strong> {parsed.objective?.join(', ')}</p>
-										<p><strong>Results:</strong> {parsed.results}</p>
-										<p><strong>Conclusion:</strong> {parsed.conclusion?.join(', ')}</p>
-										{#if $user.token}
-											<p>
-												<strong>Revelance For Doctor:</strong>
-												{parsed.relevance_for_doctor?.join(', ')}
-											</p>
-										{/if}
+										<div class="transition-max-height overflow-hidden">
+											<!-- Objective is always shown -->
+											<p><strong>Objective:</strong> {parsed.objective?.join(', ')}</p>
+											{#if expandedCards.has(index)}
+												<p><strong>Results:</strong> {parsed.results}</p>
+												<p><strong>Conclusion:</strong> {parsed.conclusion?.join(', ')}</p>
+												{#if $user.token}
+													<p>
+														<strong>Revelance For Doctor:</strong>
+														{parsed.relevance_for_doctor?.join(', ')}
+													</p>
+												{/if}
+											{/if}
+										</div>
 									{:catch}
 										<p class="text-red-500">Invalid AI content format</p>
 									{/await}
@@ -707,11 +762,9 @@
 								{/if}
 							</div>
 						</div>
-						<div class="flex items-center justify-end px-4 py-2">
-							<!-- <i
-							class="far fa-bookmark cursor-pointer text-gray-600 hover:text-yellow-500 dark:text-gray-300"
-						></i> -->
 
+						<div class="relative flex items-center justify-between px-4 py-2">
+							<!-- Bookmark -->
 							<button
 								aria-label="bookmark"
 								class={`fa-bookmark cursor-pointer ${
@@ -719,6 +772,17 @@
 								} hover:text-yellow-500 dark:text-gray-300`}
 								on:click={() => toggleBookmark(post)}
 							></button>
+							<!-- Read More / Read Less -->
+							<button
+								class="inline-block rounded-md bg-blue-600 px-2 py-1 text-sm font-medium text-white transition duration-200 hover:bg-blue-700 focus:ring-0 focus:outline-none dark:focus:ring-offset-gray-800"
+								on:click={() => toggleCard(index)}
+							>
+								{#if expandedCards.has(index)}
+									Read Less <i class="fas fa-chevron-up ml-1"></i>
+								{:else}
+									Read More <i class="fas fa-chevron-down ml-1"></i>
+								{/if}
+							</button>
 						</div>
 					</div>
 				{/each}
@@ -738,7 +802,7 @@
 					{#if msg.articles}
 						<!-- Custom card rendering -->
 						<div class="my-2 space-y-3">
-							{#each msg.articles as post}
+							{#each msg.articles as post, index}
 								<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">
 									<!-- Post Image -->
 									<a href={post.article_url} target="_blank" rel="noopener noreferrer">
@@ -756,7 +820,30 @@
 										<!-- AI Summary Content -->
 										{#if post.openai_content}
 											{#await JSON.parse(post.openai_content) then parsed}
-												<!-- Objective (truncate to 2 lines) -->
+												<div class="transition-max-height overflow-hidden">
+													<!-- Objective is always shown -->
+													<p><strong>Objective:</strong> {parsed.objective?.join(', ')}</p>
+													{#if expandedCards.has(index)}
+														<p><strong>Results:</strong> {parsed.results}</p>
+														<p><strong>Conclusion:</strong> {parsed.conclusion?.join(', ')}</p>
+														{#if $user.token}
+															<p>
+																<strong>Revelance For Doctor:</strong>
+																{parsed.relevance_for_doctor?.join(', ')}
+															</p>
+														{/if}
+													{/if}
+												</div>
+											{:catch}
+												<p class="text-red-500">Invalid AI content format</p>
+											{/await}
+										{:else}
+											<p class="text-gray-500 italic">No AI content available</p>
+										{/if}
+
+										<!-- AI Summary Content -->
+										<!-- {#if post.openai_content}
+											{#await JSON.parse(post.openai_content) then parsed}
 												{#if parsed.objective}
 													<p class="line-clamp-1 text-sm">
 														<strong>Objective:</strong>
@@ -764,7 +851,6 @@
 													</p>
 												{/if}
 
-												<!-- Results -->
 												{#if parsed.results}
 													<p class="line-clamp-1 text-sm">
 														<strong>Results:</strong>
@@ -772,7 +858,6 @@
 													</p>
 												{/if}
 
-												<!-- Conclusion -->
 												{#if parsed.conclusion}
 													<p class="line-clamp-1 text-sm">
 														<strong>Conclusion:</strong>
@@ -780,7 +865,6 @@
 													</p>
 												{/if}
 
-												<!-- Relevance (only for logged in users) -->
 												{#if $user.token && parsed.relevance_for_doctor}
 													<p class="line-clamp-1 text-sm">
 														<strong>Relevance For Doctor:</strong>
@@ -792,34 +876,49 @@
 											{/await}
 										{:else}
 											<p class="text-sm text-gray-500 italic">No AI content available</p>
-										{/if}
+										{/if} -->
 									</div>
 
 									<!-- Actions: Bookmark & Read More -->
-									<div class="flex items-center justify-between px-4 py-2">
+									<div class="relative flex items-center justify-between px-4 py-2">
 										<!-- Bookmark -->
 										<button
 											aria-label="bookmark"
-											class={`fa-bookmark cursor-pointer text-lg ${
+											class={`fa-bookmark cursor-pointer ${
 												bookmarked.has(post.article_url)
 													? 'fas text-yellow-500'
 													: 'far text-gray-600'
 											} hover:text-yellow-500 dark:text-gray-300`}
 											on:click={() => toggleBookmark(post)}
 										></button>
-
-										<!-- Read More Button -->
-										<a
-											href={post.article_url}
-											target="_blank"
-											rel="noopener noreferrer"
-											class="inline-block rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition duration-200 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none dark:focus:ring-offset-gray-800"
+										<!-- Read More / Read Less -->
+										<button
+											class="inline-block rounded-md bg-blue-600 px-2 py-1 text-sm font-medium text-white transition duration-200 hover:bg-blue-700 focus:ring-0 focus:outline-none dark:focus:ring-offset-gray-800"
+											on:click={() => toggleCard(index)}
 										>
-											Read More →
-										</a>
+											{#if expandedCards.has(index)}
+												Read Less <i class="fas fa-chevron-up ml-1"></i>
+											{:else}
+												Read More <i class="fas fa-chevron-down ml-1"></i>
+											{/if}
+										</button>
 									</div>
 								</div>
 							{/each}
+						</div>
+					{:else if msg.type === 'typing'}
+						<!-- Typing animation -->
+						<div
+							class="my-2 w-fit max-w-[75%] rounded-lg bg-gray-200 p-3 text-sm dark:bg-gray-700 dark:text-white"
+						>
+							<span class="flex items-center gap-1 space-x-1">
+								<span>Thinking</span>
+								<span class="typing-dots flex items-center space-x-1">
+									<span class="dot"></span>
+									<span class="dot"></span>
+									<span class="dot"></span>
+								</span>
+							</span>
 						</div>
 					{:else}
 						<!-- Regular text message -->
@@ -981,3 +1080,71 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	.transition-max-height {
+		transition: max-height 0.8s ease-in-out;
+	}
+
+	.typing-dots {
+		display: flex;
+		align-items: center;
+		justify-content: start;
+		gap: 4px;
+	}
+
+	.typing-dots .dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		animation: blink 1.4s infinite both;
+	}
+
+	/* Light Mode */
+	@media (prefers-color-scheme: light) {
+		.typing-dots .dot {
+			background-color: #333;
+		}
+	}
+
+	/* Dark Mode */
+	@media (prefers-color-scheme: dark) {
+		.typing-dots .dot {
+			background-color: white;
+		}
+	}
+
+	/* .typing-dots .dot {
+		width: 6px;
+		height: 6px;
+		background-color: white;
+		border-radius: 50%;
+		animation: blink 1.4s infinite both;
+		opacity: 0.6;
+	} */
+
+	.typing-dots .dot:nth-child(1) {
+		animation-delay: 0s;
+	}
+	.typing-dots .dot:nth-child(2) {
+		animation-delay: 0.2s;
+	}
+	.typing-dots .dot:nth-child(3) {
+		animation-delay: 0.4s;
+	}
+
+	@keyframes blink {
+		0% {
+			opacity: 0.2;
+			transform: scale(1);
+		}
+		50% {
+			opacity: 1;
+			transform: scale(1.3);
+		}
+		100% {
+			opacity: 0.2;
+			transform: scale(1);
+		}
+	}
+</style>

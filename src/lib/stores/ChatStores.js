@@ -13,17 +13,27 @@ export const failedNotificationMessage = writable('');
 export const showMobileDrawer = writable(false);
 export const startDate = writable('');
 export const endDate = writable('');
-export const isMobileView = writable('classical');
+// export const isMobileView = writable('classical');
+
+let initialView = 'classical';
+// Get from localStorage or fallback to 'classical'
+if (typeof window !== 'undefined') {
+	const storedView = localStorage.getItem('mobileView');
+	if (storedView) {
+		initialView = storedView;
+	}
+}
+
+export const isMobileView = writable(initialView);
+
+if (typeof window !== 'undefined') {
+	isMobileView.subscribe((value) => {
+		localStorage.setItem('mobileView', value);
+	});
+}
 
 export const journalData = writable([]); // to hold fetched data
 export const userId = writable('1'); // Assuming default or dynamic user ID
-
-// export const user = writable({
-// 	id: localStorage.getItem('user_id') || null,
-// 	name: localStorage.getItem('user_name') || null,
-// 	email: localStorage.getItem('user_email') || null,
-// 	token: localStorage.getItem('token') || null
-// });
 
 let initialUser = {
 	id: null,

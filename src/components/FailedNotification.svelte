@@ -1,5 +1,7 @@
 <script>
 	//@ts-nocheck
+	import { failedNotificationVisible } from '$lib/stores/ChatStores';
+
 	export let visible = false;
 	export let message = 'An error occurred. Please try again later.'; // Default failure message
 	export let isHtml = false; // ✅ New Prop: Check if message contains HTML
@@ -7,6 +9,7 @@
 	// Function to hide the notification
 	const hideNotification = () => {
 		visible = false;
+		failedNotificationVisible.set(false);
 	};
 
 	function removeEmojis(str) {
@@ -52,7 +55,6 @@
 				{/if}
 				<a
 					href="#"
-					id="contBtn"
 					on:click|preventDefault={hideNotification}
 					class="mt-6 block w-full rounded-full bg-red-600 py-2 text-center text-white shadow transition-all duration-300 hover:bg-red-700 hover:no-underline hover:shadow-lg"
 				>
