@@ -1,9 +1,19 @@
 <script>
 	// @ts-nocheck
 	import { goto } from '$app/navigation';
-	import { failedNotificationMessage, failedNotificationVisible } from '$lib/stores/ChatStores';
+	import {
+		failedNotificationMessage,
+		failedNotificationVisible,
+		journalSpecializations,
+
+		newsSpecializations
+
+	} from '$lib/stores/ChatStores';
 	import FailedNotification from '../FailedNotification.svelte';
 	import Select from 'svelte-select';
+	import { fetchJournalSpecializations, fetchNewsSpecializations } from './dal/specialization';
+	import { onMount } from 'svelte';
+	import { derived } from 'svelte/store';
 
 	let name = '',
 		email = '',
@@ -16,12 +26,39 @@
 		successMessage = '';
 
 	// const specializationOptions = ['Cardiology', 'Pathology', 'Neurology', 'Dermatology'];
-	const specializationOptions = [
-		{ value: 'cardiology', label: 'Cardiology' },
-		{ value: 'pathology', label: 'Pathology' },
-		{ value: 'neurology', label: 'Neurology' },
-		{ value: 'oncology', label: 'Oncology' }
-	];
+	// const specializationOptions = [
+	// 	{ value: 'cardiology', label: 'Cardiology' },
+	// 	{ value: 'pathology', label: 'Pathology' },
+	// 	{ value: 'neurology', label: 'Neurology' },
+	// 	{ value: 'oncology', label: 'Oncology' }
+	// ];
+
+	onMount(() => {
+		fetchJournalSpecializations();
+		fetchNewsSpecializations();
+	});
+
+	// Derived store to map and format the labels
+	const journalSpecializationOptions = derived(journalSpecializations, ($specs) =>
+		$specs.map((spec) => ({
+			value: spec,
+			label: spec
+				.split('_')
+				.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+				.join(' ')
+		}))
+	);
+
+	// Derived store to map and format the labels
+	const newsSpecializationOptions = derived(newsSpecializations, ($specs) =>
+		$specs.map((spec) => ({
+			value: spec,
+			label: spec
+				.split('_')
+				.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+				.join(' ')
+		}))
+	);
 
 	function toggleSpecialization(list, item) {
 		if (list.includes(item)) {
@@ -177,19 +214,22 @@
 		/>
 
 		<!-- Journal Specialization -->
-		<div class="mb-4">
+		<div class="mb-4 focus:ring-0 focus:outline-none active:ring-0">
 			<label for="journal" class="mb-1 block text-sm font-medium dark:text-white"
-				>Journal Specialization</label
+				>Journal Specialization:</label
 			>
 			<select
 				multiple
 				bind:value={selectedJournal}
-				class="w-full rounded-lg border p-1 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+				class="mb-4 w-full rounded-lg border bg-blue-100 p-1 focus:ring-0 focus:outline-none active:ring-0 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 			>
-				{#each specializationOptions as option}
-					<option class="my-1 rounded-md border border-gray-300 p-1" value={option.value}
-						>{option.label}</option
+				{#each $journalSpecializationOptions as option}
+					<option
+						class="my-1 rounded-md border border-gray-300 p-1 text-white"
+						value={option.value}
 					>
+						{option.label}
+					</option>
 				{/each}
 			</select>
 		</div>
@@ -197,17 +237,20 @@
 		<!-- News Specialization -->
 		<div class="mb-5">
 			<label for="news" class="mb-1 block text-sm font-medium dark:text-white"
-				>News Specialization</label
+				>News Specialization:</label
 			>
 			<select
 				multiple
 				bind:value={selectedNews}
-				class="w-full rounded-lg border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+				class="mb-4 w-full rounded-lg border bg-blue-100 p-1 focus:ring-0 focus:outline-none active:ring-0 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 			>
-				{#each specializationOptions as option}
-					<option class="my-1 rounded-md border border-gray-300 p-1" value={option.value}
-						>{option.label}</option
+				{#each $newsSpecializationOptions as option}
+					<option
+						class="my-1 rounded-md border border-gray-300 p-1 text-white"
+						value={option.value}
 					>
+						{option.label}
+					</option>
 				{/each}
 			</select>
 		</div>

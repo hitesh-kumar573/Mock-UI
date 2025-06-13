@@ -306,7 +306,8 @@
 
 			// Case: User not registered (userId not set)
 			if (!uid) {
-				url = 'http://45.79.125.99:7879/journal_news_articles';
+				// url = 'http://45.79.125.99:7879/journal_news_articles';
+				url += '?total=20';
 			}
 			// Case: With date range
 			else if (start && end) {
@@ -326,19 +327,39 @@
 			console.log('response data:', data);
 
 			if (res.ok) {
-				if (data.journal_articles.some((item) => !item.card_url)) {
-					// 🆕 Step: Generate and upload cards
-					let generatedImageData = await generateAndUploadCards(data.journal_articles);
+				// const articles = data?.journal_articles || [];
+				const articles = (data?.journal_articles || []).filter(
+					(item) => item.article_title !== 'Issue Information'
+				);
+
+				const validArticles = articles.filter(
+					(item) => item.card_url && item.card_url !== 'null' && item.card_url.trim() !== ''
+				);
+
+				const missingCardUrlArticles = articles.filter(
+					(item) => !item.card_url || item.card_url === 'null' || item.card_url.trim() === ''
+				);
+
+				console.log('valid articles:', validArticles);
+				console.log('missing Card Url articles:', missingCardUrlArticles);
+
+				if (missingCardUrlArticles.length === 0) {
+					// All articles already have card_url → use as-is
+					journalData.set(articles);
+					console.log('Fetched journal/news articles:', $journalData);
+				} else {
+					// Some articles are missing card_url → Only pass those to generator
+					let generatedImageData = await generateAndUploadCards(missingCardUrlArticles);
 
 					console.log('generatedImageData:', generatedImageData);
 
-					journalData.set(generatedImageData);
-					console.log('Fetched journal/news articles:', $journalData);
-					// fetchJournalArticles();
-				} else {
-					// return;
-					journalData.set(data.journal_articles);
-					console.log('Fetched journal/news articles:', $journalData);
+					let generatedData = generatedImageData?.results?.results || [];
+
+					// 🧠 Combine old valid + new generated
+					const finalCombined = [...validArticles, ...generatedData];
+
+					journalData.set(finalCombined);
+					console.log('Mixed valid + generated articles:', $journalData);
 				}
 			} else {
 				console.error('Error fetching journal/news:', data);
@@ -350,6 +371,9 @@
 
 	onMount(() => {
 		initializeNewChat();
+		// Todo2:-- get users chat
+		// URL/chats/{user_id}
+		// call this api here to get all chats of particular user
 	});
 
 	async function initializeNewChat() {
@@ -358,6 +382,10 @@
 
 		// let newId;
 		// chatIdCounter.subscribe((v) => (newId = v))();
+
+		//Todo1:- add chat
+		//  URL/chats/
+		// call this api here for adding every new chat when component render or user manually add it by clicking on new chat button
 
 		const newChat = {
 			id: newId,
@@ -374,6 +402,10 @@
 	}
 
 	function selectChat(id) {
+		//Todo4:-- Get messages of a previous chat
+		// URL/messages/{chat_id}
+		// call this api here for getting particular chats messages
+
 		chats.subscribe((c) => {
 			const chat = c.find((ch) => ch.id === id);
 			if (chat) {
@@ -384,6 +416,15 @@
 	}
 
 	function updateChatTitle(chatId, newTitle) {
+		//Todo5:-- Change title of chat
+		// URL/chats/change_title
+		// {
+		//  "user_id": 1,
+		//   "chat_id": 2,
+		//   "new_title": "Latest Articles on Nephrology."
+		// }
+
+		// call this api here to update the title of the chat by user manually
 		chats.update((c) => {
 			return c.map((chat) => {
 				if (chat.id === chatId && chat.title === 'New Chat') {
@@ -446,8 +487,16 @@
 			// return;
 
 			if (result?.results?.length) {
-				const articles = result.results;
-				const cards = result.results.map((article) => {
+				//Todo3:-- add message to database api calls here
+				// "chat_id": 2,
+				// "user_text": "I need some latest articles related to nephrology.",
+				// "response_json": result
+
+				// api:- URL/messages/
+				// header should contain Authorization
+
+				const articles = result?.results;
+				const cards = result?.results.map((article) => {
 					let finalCardUrl = article.card_url;
 					if (!finalCardUrl && article.template_url && article.article_title) {
 						// fallback card URL generation (customize this logic if needed)
@@ -662,9 +711,6 @@
 						on:click={() => (showDropdown = !showDropdown)}
 						class="rounded-md bg-blue-500 px-2 py-2 text-sm text-white hover:bg-blue-600"
 					>
-						<!-- <span class="flex items-center justify-between gap-1">
-							<i class="fas fa-user text-xs text-white"></i>{$user.name}
-						</span> -->
 						<span class="flex max-w-[120px] items-center justify-between gap-1 truncate">
 							<i class="fas fa-user text-xs text-white"></i>
 							<span class="truncate overflow-hidden whitespace-nowrap">
@@ -713,7 +759,7 @@
 	<!-- CLASSICAL VIEW -->
 	{#if $isMobileView === 'classical'}
 		<div class="flex-1 overflow-y-auto bg-gray-100 p-1 pt-[12vh] dark:bg-gray-900">
-			{#if $journalData.length === 0}
+			{#if $journalData?.length === 0}
 				<!-- Spinner while data is loading -->
 				<div class="flex h-[60vh] items-center justify-center">
 					<div
@@ -840,43 +886,6 @@
 										{:else}
 											<p class="text-gray-500 italic">No AI content available</p>
 										{/if}
-
-										<!-- AI Summary Content -->
-										<!-- {#if post.openai_content}
-											{#await JSON.parse(post.openai_content) then parsed}
-												{#if parsed.objective}
-													<p class="line-clamp-1 text-sm">
-														<strong>Objective:</strong>
-														{parsed.objective.join(', ')}
-													</p>
-												{/if}
-
-												{#if parsed.results}
-													<p class="line-clamp-1 text-sm">
-														<strong>Results:</strong>
-														{parsed.results}
-													</p>
-												{/if}
-
-												{#if parsed.conclusion}
-													<p class="line-clamp-1 text-sm">
-														<strong>Conclusion:</strong>
-														{parsed.conclusion.join(', ')}
-													</p>
-												{/if}
-
-												{#if $user.token && parsed.relevance_for_doctor}
-													<p class="line-clamp-1 text-sm">
-														<strong>Relevance For Doctor:</strong>
-														{parsed.relevance_for_doctor.join(', ')}
-													</p>
-												{/if}
-											{:catch}
-												<p class="text-sm text-red-500">Invalid AI content format</p>
-											{/await}
-										{:else}
-											<p class="text-sm text-gray-500 italic">No AI content available</p>
-										{/if} -->
 									</div>
 
 									<!-- Actions: Bookmark & Read More -->

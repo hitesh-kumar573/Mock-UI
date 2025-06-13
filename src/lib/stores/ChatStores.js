@@ -13,6 +13,10 @@ export const failedNotificationMessage = writable('');
 export const showMobileDrawer = writable(false);
 export const startDate = writable('');
 export const endDate = writable('');
+
+export const journalSpecializations = writable([]);
+export const newsSpecializations = writable([]);
+
 // export const isMobileView = writable('classical');
 
 let initialView = 'classical';
