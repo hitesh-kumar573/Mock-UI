@@ -1299,7 +1299,7 @@
 									</button> -->
 
 									<!-- 3-dots menu -->
-									<div class="relative ml-2">
+									<div class="relative z-10 ml-2">
 										<button
 											aria-label="chat action button"
 											on:click={(e) => {
@@ -1324,30 +1324,40 @@
 										<!-- Dropdown -->
 										{#if menuChatId === chat.id}
 											<div
-												class={`absolute z-30 w-32 rounded bg-white p-2 shadow-lg dark:bg-gray-800 
-		                                              ${dropdownPosition === 'top' ? 'bottom-full' : 'top-full'} right-3`}
+												class={`absolute z-30 w-fit flex items-center justify-between gap-2 rounded-md bg-white py-1 px-2 shadow-lg dark:bg-gray-800 ${
+													$user.token
+														? dropdownPosition === 'top'
+															? 'bottom-0'
+															: 'top-0'
+														: dropdownPosition === 'top'
+															? 'bottom-0'
+															: '-top-2'
+												} right-3`}
 											>
-												<!-- Rename -->
-												<button
-													class="my-1 block w-full rounded-md border border-gray-200 px-3 py-1 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700"
-													on:click={() => {
-														renamingChatId = chat.id;
-														newTitle = chat.title;
-														menuChatId = null;
-													}}
-												>
-													Rename
-												</button>
-
+												{#if $user.token}
+													<!-- Rename -->
+													<button
+														aria-label="rename button"
+														class="my-1 block w-full rounded-md border border-gray-200 px-3 py-1 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700"
+														on:click={() => {
+															renamingChatId = chat.id;
+															newTitle = chat.title;
+															menuChatId = null;
+														}}
+													>
+														<i class="fas fa-edit"></i>
+													</button>
+												{/if}
 												<!-- Delete -->
 												<button
+													aria-label="delete button"
 													class="block w-full rounded-md border border-gray-200 px-3 py-1 text-left text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"
 													on:click={() => {
 														deleteChat(chat.id);
 														menuChatId = null;
 													}}
 												>
-													Delete
+													<i class="fas fa-trash-alt"></i>
 												</button>
 											</div>
 										{/if}
