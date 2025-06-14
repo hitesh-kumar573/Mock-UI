@@ -30,6 +30,11 @@
 	let chatContainer;
 	let showDropdown = false;
 
+	let dropdownPosition = 'bottom'; // 'top' or 'bottom'
+	let menuChatId = null; // to track which chat's menu is open
+	let renamingChatId = null;
+	let newTitle = '';
+
 	// Bookmarked post IDs (assuming each post has a unique ID or title)
 	let bookmarked = new Set(); // local reactive state
 
@@ -369,16 +374,100 @@
 		}
 	}
 
-	onMount(() => {
-		initializeNewChat();
-		// Todo2:-- get users chat
-		// URL/chats/{user_id}
-		// call this api here to get all chats of particular user
+	// onMount(async () => {
+	// 	await initializeNewChat();
+	// 	await fetchUserChats();
+	// 	// Todo2:-- get users chat
+	// 	// URL/chats/{user_id}
+	// 	// call this api here to get all chats of particular user
+	// });
+
+	onMount(async () => {
+		await fetchUserChats(); // Always fetch first
+
+		const currentChats = get(chats);
+		if (!currentChats || currentChats.length === 0) {
+			initializeNewChat(); // Only if no chats exist after fetch
+		}
 	});
+
+	async function fetchUserChats() {
+		const currentUserId = localStorage.getItem('user_id');
+		if (!currentUserId) {
+			console.log('Guest user – skipping chat fetch');
+			chats.set([]);
+			return; // skip for guest
+		}
+
+		let currentUserToken = '';
+		if (currentUserId) {
+			currentUserToken = localStorage.getItem(`token-${currentUserId}`);
+			console.log('Current user token:', currentUserToken);
+		}
+		console.log('Current user id:', currentUserId);
+		try {
+			const res = await fetch(`http://45.79.125.99:7879/chats/${currentUserId}`, {
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${currentUserToken}`
+				}
+			});
+
+			if (!res.ok) throw new Error('Failed to fetch chats');
+
+			const data = await res.json();
+
+			console.log('fetched data:', data);
+			// Add messages placeholder for each chat
+			const formattedChats = data.map((chat) => ({
+				id: chat.chat_id,
+				title: chat.title,
+				messages: [] // You can fetch specific chat messages later if needed
+			}));
+
+			chats.set(formattedChats);
+
+			// ✅ Auto-select first chat if any exist
+			if (formattedChats.length > 0) {
+				selectChat(formattedChats[0].id); // auto-load first chat's messages
+			}
+		} catch (error) {
+			console.error('Error fetching user chats:', error);
+		}
+	}
 
 	async function initializeNewChat() {
 		chatIdCounter.update((c) => c + 1);
 		const newId = get(chatIdCounter); // get the updated value synchronously
+
+		const currentUserId = localStorage.getItem('user_id');
+		let currentUserToken = '';
+		if (currentUserId) {
+			currentUserToken = localStorage.getItem(`token-${currentUserId}`);
+			console.log('Current user token:', currentUserToken);
+		}
+		console.log('Current user id:', currentUserId);
+
+		const isGuest = !currentUserId;
+
+		chatIdCounter.update((c) => c + 1);
+		// const newId = get(chatIdCounter); // local unique ID
+
+		if (isGuest) {
+			// 🟡 Guest user – Create temp chat locally
+			const tempChat = {
+				id: newId,
+				title: 'New Chat',
+				messages: [{ sender: 'bot', text: 'Hi! How can I assist you today?' }]
+			};
+
+			chats.update((c) => [tempChat, ...c]);
+			activeChatId.set(newId);
+			messages.set(tempChat.messages);
+			await tick();
+			scrollToBottom();
+			return;
+		}
 
 		// let newId;
 		// chatIdCounter.subscribe((v) => (newId = v))();
@@ -386,36 +475,111 @@
 		//Todo1:- add chat
 		//  URL/chats/
 		// call this api here for adding every new chat when component render or user manually add it by clicking on new chat button
+		try {
+			const res = await fetch('http://45.79.125.99:7879/chats/', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${currentUserToken}`
+				},
+				body: JSON.stringify({
+					// user_id: currentUserId,
+					user_id: Number(currentUserId),
+					title: 'New Chat'
+				})
+			});
 
-		const newChat = {
-			id: newId,
-			title: 'New Chat',
-			messages: [{ sender: 'bot', text: 'Hi! How can I assist you today?' }]
-		};
+			console.log('res:', res);
 
-		chats.update((c) => [newChat, ...c]);
-		activeChatId.set(newId);
-		messages.set(newChat.messages);
+			if (!res.ok) {
+				const errorText = await res.text(); // OR use res.json() if API returns JSON error
+				console.error('Failed to create chat:', errorText);
+				throw new Error('Failed to create chat');
+			}
 
-		await tick(); // ensure DOM updates after setting messages
-		scrollToBottom(); // scroll to bottom so message is visible
+			const data = await res.json();
+			console.log('response data:', data);
+
+			const newChat = {
+				id: data.chat_id,
+				title: data.title,
+				messages: [{ sender: 'bot', text: 'Hi! How can I assist you today?' }]
+			};
+
+			chats.update((c) => [newChat, ...c]);
+			activeChatId.set(data.chat_id);
+			messages.set(newChat.messages);
+
+			await tick(); // ensure DOM updates after setting messages
+			scrollToBottom(); // scroll to bottom so message is visible
+		} catch (error) {
+			console.error('Error creating new chat:', error);
+		}
 	}
 
-	function selectChat(id) {
+	async function selectChat(id) {
 		//Todo4:-- Get messages of a previous chat
 		// URL/messages/{chat_id}
 		// call this api here for getting particular chats messages
 
-		chats.subscribe((c) => {
-			const chat = c.find((ch) => ch.id === id);
-			if (chat) {
-				activeChatId.set(chat.id);
-				messages.set(chat.messages);
+		const currentUserId = localStorage.getItem('user_id');
+		let currentUserToken = '';
+		if (currentUserId) {
+			currentUserToken = localStorage.getItem(`token-${currentUserId}`);
+		}
+
+		// 	chats.subscribe((c) => {
+		// 		const chat = c.find((ch) => ch.id === id);
+		// 		if (chat) {
+		// 			activeChatId.set(chat.id);
+		// 			messages.set(chat.messages);
+		// 		}
+		// 	})();
+		// }
+
+		try {
+			const res = await fetch(`http://45.79.125.99:7879/messages/${id}`, {
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${currentUserToken}`
+				}
+			});
+
+			let parsedMessages;
+
+			// ⚠️ If chat is new (no messages yet), fallback to default
+			if (!res.ok) {
+				console.warn('New chat selected or messages not found. Showing default message.');
+
+				parsedMessages = [{ sender: 'bot', text: 'Hi! How can I assist you today?' }];
+			} else {
+				const data = await res.json();
+				console.log('data:', data);
+
+				parsedMessages = data.flatMap((item) => [
+					{ sender: 'user', text: item.user_text },
+					{
+						sender: 'bot',
+						articles: item.response_json?.results || []
+					}
+				]);
 			}
-		})();
+
+			chats.update((c) =>
+				c.map((chat) => (chat.id === id ? { ...chat, messages: parsedMessages } : chat))
+			);
+
+			activeChatId.set(id);
+			messages.set(parsedMessages);
+
+			await tick();
+			scrollToBottom();
+		} catch (error) {
+			console.error('Error fetching messages:', error);
+		}
 	}
 
-	function updateChatTitle(chatId, newTitle) {
+	async function updateChatTitle(chatId, newTitle) {
 		//Todo5:-- Change title of chat
 		// URL/chats/change_title
 		// {
@@ -424,18 +588,59 @@
 		//   "new_title": "Latest Articles on Nephrology."
 		// }
 
+		const currentUserId = localStorage.getItem('user_id');
+		let currentUserToken = '';
+		if (currentUserId) {
+			currentUserToken = localStorage.getItem(`token-${currentUserId}`);
+		}
+
 		// call this api here to update the title of the chat by user manually
-		chats.update((c) => {
-			return c.map((chat) => {
-				if (chat.id === chatId && chat.title === 'New Chat') {
-					return { ...chat, title: newTitle.slice(0, 25) };
-				}
-				return chat;
+		// 	chats.update((c) => {
+		// 		return c.map((chat) => {
+		// 			if (chat.id === chatId && chat.title === 'New Chat') {
+		// 				return { ...chat, title: newTitle.slice(0, 25) };
+		// 			}
+		// 			return chat;
+		// 		});
+		// 	});
+		// }
+
+		try {
+			const res = await fetch('http://45.79.125.99:7879/chats/change_title', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${currentUserToken}`
+				},
+				body: JSON.stringify({
+					user_id: Number(currentUserId),
+					chat_id: chatId,
+					new_title: newTitle
+				})
 			});
-		});
+
+			if (!res.ok) throw new Error('Failed to update chat title');
+
+			const data = await res.json();
+			console.log('Title updated:', data);
+
+			// Update local state
+			chats.update((c) =>
+				c.map((chat) =>
+					chat.id === chatId ? { ...chat, title: data.new_title.slice(0, 25) } : chat
+				)
+			);
+		} catch (error) {
+			console.error('Error updating chat title:', error);
+		}
 	}
 
 	async function sendMessage() {
+		const currentUserId = localStorage.getItem('user_id');
+		let currentUserToken = '';
+		if (currentUserId) {
+			currentUserToken = localStorage.getItem(`token-${currentUserId}`);
+		}
 		let currentUserInput;
 		userInput.subscribe((v) => (currentUserInput = v))();
 
@@ -448,6 +653,7 @@
 
 		let uid;
 		userId.subscribe((v) => (uid = v))();
+		console.log('uid from send func:', uid);
 
 		const userMsg = { sender: 'user', text: currentUserInput.trim() };
 		messages.update((m) => [...m, userMsg]);
@@ -494,6 +700,37 @@
 
 				// api:- URL/messages/
 				// header should contain Authorization
+				const isGuest = !uid;
+				if (!isGuest) {
+					//Save user query and AI response in DB
+					try {
+						console.log('token:', currentUserToken);
+						console.log('currentActiveChatId:', currentActiveChatId);
+						console.log('userMsg text:', userMsg.text);
+						console.log('result:', result);
+
+						const saveRes = await fetch('http://45.79.125.99:7879/messages/', {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json',
+								Authorization: `Bearer ${currentUserToken}`
+							},
+							body: JSON.stringify({
+								chat_id: currentActiveChatId,
+								user_text: userMsg.text,
+								response_json: result // full result object
+							})
+						});
+						console.log('Message saved to data base response:', saveRes);
+
+						const saveData = await saveRes.json();
+						console.log('Message saved to data base:', saveData);
+					} catch (err) {
+						console.error('Error saving message:', err);
+					}
+				} else {
+					console.log('Guest mode: message not saved to DB');
+				}
 
 				const articles = result?.results;
 				const cards = result?.results.map((article) => {
@@ -593,7 +830,7 @@
 
 		if (!currentUserId || !currentUserToken) {
 			// alert('Please login to bookmark posts.');
-			failedNotificationMessage.set('Please login to bookmark posts.');
+			failedNotificationMessage.set('Please login to bookmark the posts.');
 			failedNotificationVisible.set(true);
 			setTimeout(() => failedNotificationVisible.set(false), 4000);
 			return;
@@ -1035,7 +1272,7 @@
 							</button>
 						</div>
 
-						<div class="max-h-[40vh] overflow-y-auto">
+						<div class="chat-container max-h-[40vh] overflow-y-auto">
 							<!-- Chat History -->
 							{#each $chats as chat (chat.id)}
 								<div
@@ -1053,14 +1290,95 @@
 									>
 										{chat.title}
 									</button>
-									<button
+									<!-- <button
 										aria-label="delete button"
 										on:click={() => deleteChat(chat.id)}
 										class="ml-2 text-red-500 hover:text-red-700"
 									>
 										<i class="fas fa-trash-alt"></i>
-									</button>
+									</button> -->
+
+									<!-- 3-dots menu -->
+									<div class="relative ml-2">
+										<button
+											aria-label="chat action button"
+											on:click={(e) => {
+												const btn = e.currentTarget;
+												const rect = btn.getBoundingClientRect();
+												const container = btn.closest('.chat-container');
+												if (!container) return;
+												const containerRect = container.getBoundingClientRect();
+
+												const spaceBelow = containerRect.bottom - rect.bottom;
+												const spaceAbove = rect.top - containerRect.top;
+
+												dropdownPosition =
+													spaceBelow < 100 && spaceAbove > spaceBelow ? 'top' : 'bottom';
+												menuChatId = menuChatId === chat.id ? null : chat.id;
+											}}
+											class="text-gray-600 hover:text-gray-800 dark:text-white"
+										>
+											<i class="fas fa-ellipsis-v"></i>
+										</button>
+
+										<!-- Dropdown -->
+										{#if menuChatId === chat.id}
+											<div
+												class={`absolute z-30 w-32 rounded bg-white p-2 shadow-lg dark:bg-gray-800 
+		                                              ${dropdownPosition === 'top' ? 'bottom-full' : 'top-full'} right-3`}
+											>
+												<!-- Rename -->
+												<button
+													class="my-1 block w-full rounded-md border border-gray-200 px-3 py-1 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700"
+													on:click={() => {
+														renamingChatId = chat.id;
+														newTitle = chat.title;
+														menuChatId = null;
+													}}
+												>
+													Rename
+												</button>
+
+												<!-- Delete -->
+												<button
+													class="block w-full rounded-md border border-gray-200 px-3 py-1 text-left text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+													on:click={() => {
+														deleteChat(chat.id);
+														menuChatId = null;
+													}}
+												>
+													Delete
+												</button>
+											</div>
+										{/if}
+									</div>
 								</div>
+								<!-- Rename input UI below the chat item -->
+								{#if renamingChatId === chat.id}
+									<div class="mt-1 flex items-center gap-2 px-2">
+										<input
+											type="text"
+											bind:value={newTitle}
+											class="w-full rounded border px-2 py-1 text-sm text-gray-800 dark:bg-gray-900 dark:text-white"
+											placeholder="Enter new title"
+										/>
+										<button
+											class="rounded bg-blue-500 px-2 py-1 text-sm text-white hover:bg-blue-600"
+											on:click={async () => {
+												await updateChatTitle(chat.id, newTitle);
+												renamingChatId = null;
+											}}
+										>
+											Save
+										</button>
+										<button
+											class="rounded bg-gray-300 px-2 py-1 text-sm hover:bg-gray-400 dark:bg-gray-700 dark:text-white"
+											on:click={() => (renamingChatId = null)}
+										>
+											Cancel
+										</button>
+									</div>
+								{/if}
 							{/each}
 						</div>
 					</div>
