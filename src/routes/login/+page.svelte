@@ -3,5 +3,5 @@
 	import LoginIdPassword from '../../components/loginComponents/LoginIdPassword.svelte';
 </script>
 
-<!-- <Login /> -->
-<LoginIdPassword />
+<Login />
+<!-- <LoginIdPassword /> -->

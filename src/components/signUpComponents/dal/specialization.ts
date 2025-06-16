@@ -1,6 +1,5 @@
 //@ts-nocheck
 
-// src/lib/api/specializations.js
 import { journalSpecializations, newsSpecializations } from "$lib/stores/ChatStores";
 import { get } from "svelte/store";
 

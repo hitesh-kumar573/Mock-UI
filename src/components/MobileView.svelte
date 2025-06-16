@@ -785,27 +785,104 @@
 		}
 	}
 
-	function deleteChat(chatId) {
-		chats.update((prev) => {
-			if (prev.length <= 1) {
-				failedNotificationMessage.set('At least one chat must remain.');
-				failedNotificationVisible.set(true);
-				setTimeout(() => failedNotificationVisible.set(false), 4000);
-				return prev;
+	// function deleteChat(chatId) {
+	// 	chats.update((prev) => {
+	// 		if (prev.length <= 1) {
+	// 			failedNotificationMessage.set('At least one chat must remain.');
+	// 			failedNotificationVisible.set(true);
+	// 			setTimeout(() => failedNotificationVisible.set(false), 4000);
+	// 			return prev;
+	// 		}
+
+	// 		const filteredChats = prev.filter((chat) => chat.id !== chatId);
+
+	// 		let currentActiveId;
+	// 		activeChatId.subscribe((v) => (currentActiveId = v))();
+
+	// 		if (chatId === currentActiveId) {
+	// 			activeChatId.set(filteredChats[0]?.id || null);
+	// 			messages.set(filteredChats[0]?.messages || []);
+	// 		}
+
+	// 		return filteredChats;
+	// 	});
+	// }
+
+	async function deleteChat(chatId) {
+		const currentUserId = localStorage.getItem('user_id');
+		let currentUserToken = '';
+		if (currentUserId) {
+			currentUserToken = localStorage.getItem(`token-${currentUserId}`);
+		}
+
+		// Check if only one chat remains
+		const currentChats = get(chats);
+		if (currentChats.length <= 1) {
+			failedNotificationMessage.set('At least one chat must remain.');
+			failedNotificationVisible.set(true);
+			setTimeout(() => failedNotificationVisible.set(false), 4000);
+			return;
+		}
+
+		// If user is NOT logged in, delete locally only
+		if (!currentUserId || !currentUserToken) {
+			chats.update((prev) => {
+				const filteredChats = prev.filter((chat) => chat.id !== chatId);
+
+				let currentActiveId;
+				activeChatId.subscribe((v) => (currentActiveId = v))();
+
+				if (chatId === currentActiveId) {
+					activeChatId.set(filteredChats[0]?.id || null);
+					messages.set(filteredChats[0]?.messages || []);
+				}
+
+				return filteredChats;
+			});
+			return;
+		}
+
+		// Logged-in user — delete from backend
+		try {
+			const response = await fetch('http://45.79.125.99:7879/chats/delete_chat', {
+				method: 'DELETE',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${currentUserToken}`
+				},
+				body: JSON.stringify({
+					user_id: Number(currentUserId),
+					chat_id: chatId
+				})
+			});
+			console.log('response:', response);
+
+			const data = await response.json();
+			console.log('data:', data);
+
+			if (response.ok && Array.isArray(data) && data[0] === 'Chat deleted successfully') {
+				chats.update((prev) => {
+					const filteredChats = prev.filter((chat) => chat.id !== chatId);
+
+					let currentActiveId;
+					activeChatId.subscribe((v) => (currentActiveId = v))();
+
+					if (chatId === currentActiveId) {
+						activeChatId.set(filteredChats[0]?.id || null);
+						messages.set(filteredChats[0]?.messages || []);
+					}
+
+					return filteredChats;
+				});
+			} else {
+				throw new Error('Failed to delete chat from server');
 			}
-
-			const filteredChats = prev.filter((chat) => chat.id !== chatId);
-
-			let currentActiveId;
-			activeChatId.subscribe((v) => (currentActiveId = v))();
-
-			if (chatId === currentActiveId) {
-				activeChatId.set(filteredChats[0]?.id || null);
-				messages.set(filteredChats[0]?.messages || []);
-			}
-
-			return filteredChats;
-		});
+		} catch (error) {
+			console.error('Delete chat error:', error);
+			failedNotificationMessage.set('Failed to delete chat.');
+			failedNotificationVisible.set(true);
+			setTimeout(() => failedNotificationVisible.set(false), 4000);
+		}
 	}
 
 	function autoResize(e) {
@@ -948,11 +1025,17 @@
 						on:click={() => (showDropdown = !showDropdown)}
 						class="rounded-md bg-blue-500 px-2 py-2 text-sm text-white hover:bg-blue-600"
 					>
-						<span class="flex max-w-[120px] items-center justify-between gap-1 truncate">
+						<span class="flex max-w-[60px] items-center justify-between gap-1 truncate">
 							<i class="fas fa-user text-xs text-white"></i>
-							<span class="truncate overflow-hidden whitespace-nowrap">
-								{$user.name}
-							</span>
+							{#if $user.name}
+								<span class="truncate overflow-hidden whitespace-nowrap">
+									{$user.name}
+								</span>
+							{:else}
+								<span class="truncate overflow-hidden whitespace-nowrap">
+									{$user.id}
+								</span>
+							{/if}
 						</span>
 					</button>
 
@@ -961,12 +1044,22 @@
 							class="absolute right-0 z-50 mt-2 w-48 rounded-md bg-white shadow-lg dark:bg-gray-700"
 						>
 							<div class="px-4 py-2 text-sm text-gray-700 dark:text-white">
-								<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
-									<strong>{$user.name}</strong>
-								</p>
-								<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
-									{$user.email}
-								</p>
+								{#if $user.name}
+									<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
+										<strong>{$user.name}</strong>
+									</p>
+									<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
+										{$user.id}
+									</p>
+								{:else if $user.email}
+									<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
+										{$user.email}
+									</p>
+								{:else}
+									<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
+										{$user.id}
+									</p>
+								{/if}
 							</div>
 							<hr class="my-1" />
 							<button
@@ -1324,7 +1417,7 @@
 										<!-- Dropdown -->
 										{#if menuChatId === chat.id}
 											<div
-												class={`absolute z-30 w-fit flex items-center justify-between gap-2 rounded-md bg-white py-1 px-2 shadow-lg dark:bg-gray-800 ${
+												class={`absolute z-30 flex w-fit items-center justify-between gap-2 rounded-md bg-white px-2 py-1 shadow-lg dark:bg-gray-800 ${
 													$user.token
 														? dropdownPosition === 'top'
 															? 'bottom-0'

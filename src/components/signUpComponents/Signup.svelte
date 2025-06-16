@@ -5,9 +5,7 @@
 		failedNotificationMessage,
 		failedNotificationVisible,
 		journalSpecializations,
-
 		newsSpecializations
-
 	} from '$lib/stores/ChatStores';
 	import FailedNotification from '../FailedNotification.svelte';
 	import Select from 'svelte-select';
@@ -16,6 +14,7 @@
 	import { derived } from 'svelte/store';
 
 	let name = '',
+		phone = '',
 		email = '',
 		password = '',
 		designation = '';
@@ -72,11 +71,32 @@
 		errorMessage = '';
 		successMessage = '';
 
+		// Clean phone input
+		const sanitizedPhone = phone.replace(/\D/g, ''); // remove non-digit characters
+
+		// Validate Indian phone number (10 digits)
+		if (sanitizedPhone.length !== 10) {
+			errorMessage = 'Please enter a valid 10-digit phone number.';
+			// failedNotificationMessage.set(message);
+			// failedNotificationVisible.set(true);
+			// setTimeout(() => {
+			// 	failedNotificationVisible.set(false);
+			// }, 4000);
+			setTimeout(() => {
+				errorMessage = '';
+			}, 3000);
+			return;
+		}
+
+		// Format with +91
+		// const formattedPhone = `+91${sanitizedPhone}`;
+
 		if (
-			!name ||
-			!email ||
-			!password ||
-			!designation ||
+			// !name ||
+			!phone ||
+			// !email ||
+			// !password ||
+			// !designation ||
 			selectedJournal.length === 0 ||
 			selectedNews.length === 0
 		) {
@@ -92,6 +112,8 @@
 
 		const payload = {
 			name,
+			// phone,
+			phone: sanitizedPhone,
 			email,
 			password,
 			designation,
@@ -182,6 +204,14 @@
 			placeholder="Name"
 			class="mb-3 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 		/>
+		<input
+			bind:value={phone}
+			type="tel"
+			autocomplete="off"
+			maxlength="10"
+			placeholder="Phone *"
+			class="mb-3 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+		/>
 
 		<input
 			bind:value={email}
@@ -216,7 +246,7 @@
 		<!-- Journal Specialization -->
 		<div class="mb-4 focus:ring-0 focus:outline-none active:ring-0">
 			<label for="journal" class="mb-1 block text-sm font-medium dark:text-white"
-				>Journal Specialization:</label
+				>Journal Specialization: <span class="text-red-500">*</span></label
 			>
 			<select
 				multiple
@@ -237,7 +267,7 @@
 		<!-- News Specialization -->
 		<div class="mb-5">
 			<label for="news" class="mb-1 block text-sm font-medium dark:text-white"
-				>News Specialization:</label
+				>News Specialization: <span class="text-red-500">*</span></label
 			>
 			<select
 				multiple
