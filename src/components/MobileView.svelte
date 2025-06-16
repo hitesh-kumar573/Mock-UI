@@ -1024,7 +1024,7 @@
 		<div class="flex items-center justify-between gap-2">
 			<button
 				on:click={() => isMobileView.set($isMobileView === 'classical' ? 'assisted' : 'classical')}
-				class="rounded-md bg-blue-500 px-2 py-2 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 dark:text-white"
+				class="rounded-md bg-blue-500 px-2 py-2 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 active:text-white dark:text-white"
 			>
 				{$isMobileView === 'classical' ? 'Assisted' : 'Classical'}
 			</button>
@@ -1086,7 +1086,7 @@
 							<hr class="my-1" />
 							<button
 								on:click={logout}
-								class="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+								class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700"
 							>
 								Logout
 							</button>
