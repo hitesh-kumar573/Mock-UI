@@ -13,6 +13,8 @@
 	import { onMount } from 'svelte';
 	import { derived } from 'svelte/store';
 
+	const baseUrl = import.meta.env.VITE_API_BASE_URL;
+
 	let name = '',
 		phone = '',
 		email = '',
@@ -125,7 +127,7 @@
 		// return;
 
 		try {
-			const res = await fetch('http://45.79.125.99:7879/signup', {
+			const res = await fetch(`${baseUrl}/signup`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(payload)

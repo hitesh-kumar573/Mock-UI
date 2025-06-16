@@ -4,6 +4,9 @@
 	import { failedNotificationMessage, failedNotificationVisible } from '$lib/stores/ChatStores';
 	import FailedNotification from '../FailedNotification.svelte';
 
+	const baseUrl = import.meta.env.VITE_API_BASE_URL;
+	const frontendUrl = import.meta.env.VITE_API_FRONTEND_URL;
+
 	let step = 1;
 	let phone = '';
 	let otp = '';
@@ -32,7 +35,7 @@
 		let userExists = false;
 
 		try {
-			const userCheck = await fetch('http://45.79.125.99:7879/user_check', {
+			const userCheck = await fetch(`${baseUrl}/user_check`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ phone: sanitizedPhone })
@@ -55,7 +58,7 @@
 			};
 
 			try {
-				const signupRes = await fetch('http://45.79.125.99:7879/signup', {
+				const signupRes = await fetch(`${baseUrl}/signup`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify(signupPayload)
@@ -82,8 +85,8 @@
 
 		// Step 5: Send OTP
 		try {
-			// const otpRes = await fetch('http://172.105.252.34:4000/api/send-otp', {
-			const otpRes = await fetch('/api/send-otp', {
+			// const otpRes = await fetch(`${frontendUrl}/api/send-otp`, {
+				const otpRes = await fetch('/api/send-otp', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ phone: fullPhone })
@@ -115,7 +118,7 @@
 
 		try {
 			const res = await fetch('/api/verify-otp', {
-				// const res = await fetch('http://172.105.252.34:4000/api/verify-otp', {
+			// const res = await fetch(`${frontendUrl}/api/verify-otp`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ phone: fullPhone, code: otp })
@@ -127,7 +130,7 @@
 				message = 'Phone number verified successfully!';
 
 				// ✅ Step 2: Log the user in using sanitizedPhone (without +91)
-				const loginRes = await fetch('http://45.79.125.99:7879/login_using_phone', {
+				const loginRes = await fetch(`${baseUrl}/login_using_phone`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ phone: sanitizedPhone })

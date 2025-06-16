@@ -27,6 +27,8 @@
 	import { get } from 'svelte/store';
 	import LoginPopNotification from './loginComponents/LoginPopNotification.svelte';
 
+	const baseUrl = import.meta.env.VITE_API_BASE_URL;
+
 	let showLoginPopup = false;
 
 	let calendarRef;
@@ -60,7 +62,7 @@
 		try {
 			let res = '';
 			if (currentUserId && currentUserToken) {
-				res = await fetch(`http://45.79.125.99:7879/get_bookmarks?user_id=${currentUserId}`, {
+				res = await fetch(`${baseUrl}/get_bookmarks?user_id=${currentUserId}`, {
 					method: 'GET',
 					headers: {
 						Authorization: `Bearer ${currentUserToken}`
@@ -283,7 +285,7 @@
 
 		// POST request to update_card_url
 		try {
-			const res = await fetch('http://45.79.125.99:7879/update_card_url', {
+			const res = await fetch(`${baseUrl}/update_card_url`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(filteredPayload)
@@ -309,9 +311,9 @@
 			// let url = 'http://45.79.125.99:7879/journal_news_articles';
 
 			// Use environment variable (TODO: move to .env in Vite: import.meta.env.VITE_API_URL)
-			let baseUrl = 'http://45.79.125.99:7879/journal_news_articles';
+			let mainUrl = `${baseUrl}/journal_news_articles`;
 
-			let url = baseUrl;
+			let url = mainUrl;
 
 			// Case: User not registered (userId not set)
 			if (!uid) {
@@ -410,7 +412,7 @@
 		}
 		console.log('Current user id:', currentUserId);
 		try {
-			const res = await fetch(`http://45.79.125.99:7879/chats/${currentUserId}`, {
+			const res = await fetch(`${baseUrl}/chats/${currentUserId}`, {
 				headers: {
 					'Content-Type': 'application/json',
 					Authorization: `Bearer ${currentUserToken}`
@@ -480,7 +482,7 @@
 		//  URL/chats/
 		// call this api here for adding every new chat when component render or user manually add it by clicking on new chat button
 		try {
-			const res = await fetch('http://45.79.125.99:7879/chats/', {
+			const res = await fetch(`${baseUrl}/chats/`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -542,7 +544,7 @@
 		// }
 
 		try {
-			const res = await fetch(`http://45.79.125.99:7879/messages/${id}`, {
+			const res = await fetch(`${baseUrl}/messages/${id}`, {
 				headers: {
 					'Content-Type': 'application/json',
 					Authorization: `Bearer ${currentUserToken}`
@@ -610,7 +612,7 @@
 		// }
 
 		try {
-			const res = await fetch('http://45.79.125.99:7879/chats/change_title', {
+			const res = await fetch(`${baseUrl}/chats/change_title`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -682,7 +684,7 @@
 		scrollToBottom();
 
 		try {
-			const response = await fetch('http://45.79.125.99:7778/custom-journal-query', {
+			const response = await fetch(`${baseUrl}/custom-journal-query`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -713,7 +715,7 @@
 						console.log('userMsg text:', userMsg.text);
 						console.log('result:', result);
 
-						const saveRes = await fetch('http://45.79.125.99:7879/messages/', {
+						const saveRes = await fetch(`${baseUrl}/messages/`, {
 							method: 'POST',
 							headers: {
 								'Content-Type': 'application/json',
@@ -848,7 +850,7 @@
 
 		// Logged-in user — delete from backend
 		try {
-			const response = await fetch('http://45.79.125.99:7879/chats/delete_chat', {
+			const response = await fetch(`${baseUrl}/chats/delete_chat`, {
 				method: 'DELETE',
 				headers: {
 					'Content-Type': 'application/json',
@@ -924,9 +926,7 @@
 		const isBookmarked = bookmarked.has(post.article_url); // or post.id if exists
 
 		console.log('isBookmarked', isBookmarked);
-		const url = isBookmarked
-			? 'http://45.79.125.99:7879/remove_bookmarks'
-			: 'http://45.79.125.99:7879/add_bookmarks';
+		const url = isBookmarked ? `${baseUrl}/remove_bookmarks` : `${baseUrl}/add_bookmarks`;
 
 		console.log('url', url);
 

@@ -4,6 +4,8 @@
 	import { failedNotificationMessage, failedNotificationVisible } from '$lib/stores/ChatStores';
 	import FailedNotification from '../FailedNotification.svelte';
 
+	const baseUrl = import.meta.env.VITE_API_BASE_URL;
+
 	let username = '';
 	let password = '';
 	let showPassword = false;
@@ -20,7 +22,7 @@
 		}
 
 		try {
-			const res = await fetch('http://45.79.125.99:7879/login', {
+			const res = await fetch(`${baseUrl}/login`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ username, password })
