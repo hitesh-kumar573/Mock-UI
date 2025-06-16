@@ -25,6 +25,9 @@
 	import flatpickr from 'flatpickr';
 	import 'flatpickr/dist/flatpickr.min.css';
 	import { get } from 'svelte/store';
+	import LoginPopNotification from './loginComponents/LoginPopNotification.svelte';
+
+	let showLoginPopup = false;
 
 	let calendarRef;
 	let chatContainer;
@@ -134,6 +137,7 @@
 
 		if (userId) {
 			localStorage.removeItem(`user_name-${userId}`);
+			localStorage.removeItem(`user_designation-${userId}`);
 			localStorage.removeItem(`user_email-${userId}`);
 			localStorage.removeItem(`token-${userId}`);
 			localStorage.removeItem('user_id');
@@ -907,9 +911,13 @@
 
 		if (!currentUserId || !currentUserToken) {
 			// alert('Please login to bookmark posts.');
-			failedNotificationMessage.set('Please login to bookmark the posts.');
-			failedNotificationVisible.set(true);
-			setTimeout(() => failedNotificationVisible.set(false), 4000);
+			// failedNotificationMessage.set('Please login to bookmark the posts.');
+			// failedNotificationVisible.set(true);
+			// setTimeout(() => failedNotificationVisible.set(false), 4000);
+			showLoginPopup = false;
+
+			await tick();
+			showLoginPopup = true;
 			return;
 		}
 
@@ -980,6 +988,8 @@
 
 <!-- <FailedNotification /> -->
 <FailedNotification message={$failedNotificationMessage} visible={$failedNotificationVisible} />
+<!-- Login Popup -->
+<LoginPopNotification visible={showLoginPopup} />
 
 <div class="flex min-h-[100dvh] flex-col font-sans md:hidden">
 	<!-- HEADER: Calendar + Toggle -->
@@ -1060,6 +1070,17 @@
 										{$user.id}
 									</p>
 								{/if}
+							</div>
+							<div class="px-4 py-2 text-sm text-gray-700 dark:text-white">
+								<button
+									class="cursor-pointer"
+									on:click={() => {
+										console.log('Updating...');
+										goto('/update-profile');
+									}}
+								>
+									Edit Profile
+								</button>
 							</div>
 							<hr class="my-1" />
 							<button

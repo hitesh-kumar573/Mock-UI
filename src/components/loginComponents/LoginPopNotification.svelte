@@ -1,7 +1,12 @@
 <script>
 	//@ts-nocheck
 	import { goto } from '$app/navigation';
-	import { failedNotificationMessage, failedNotificationVisible } from '$lib/stores/ChatStores';
+	import {
+		failedNotificationMessage,
+		failedNotificationVisible,
+		user
+	} from '$lib/stores/ChatStores';
+	import { tick } from 'svelte';
 	import FailedNotification from '../FailedNotification.svelte';
 
 	let step = 1;
@@ -9,6 +14,13 @@
 	let otp = '';
 	let message = '';
 	let showOtp = false;
+
+	export let visible = false;
+
+	// Close popup
+	const closePopup = () => {
+		visible = !visible;
+	};
 
 	async function sendOtp() {
 		console.log('phone:', phone);
@@ -19,6 +31,8 @@
 		// Step 2: Validate phone
 		if (sanitizedPhone.length !== 10) {
 			message = 'Please enter a valid 10-digit phone number.';
+			setTimeout(() => (message = ''), 3000);
+
 			failedNotificationMessage.set(message);
 			failedNotificationVisible.set(true);
 			setTimeout(() => failedNotificationVisible.set(false), 4000);
@@ -45,6 +59,7 @@
 		} catch (err) {
 			console.error('Error checking user existence:', err);
 			message = 'Server error. Try again.';
+			setTimeout(() => (message = ''), 3000);
 			return;
 		}
 
@@ -66,6 +81,7 @@
 
 				if (!signupRes.ok) {
 					message = signupData.message || 'Signup failed';
+					setTimeout(() => (message = ''), 3000);
 					failedNotificationMessage.set(message);
 					failedNotificationVisible.set(true);
 					setTimeout(() => failedNotificationVisible.set(false), 4000);
@@ -73,9 +89,11 @@
 				}
 
 				message = 'Signup successful! Sending OTP...';
+				setTimeout(() => (message = ''), 3000);
 			} catch (err) {
 				console.error('Signup failed:', err);
 				message = 'Signup failed. Try again.';
+				setTimeout(() => (message = ''), 3000);
 				return;
 			}
 		}
@@ -97,6 +115,7 @@
 				message = 'OTP sent successfully!';
 			} else {
 				message = otpData.error || 'Failed to send OTP';
+				setTimeout(() => (message = ''), 3000);
 				failedNotificationMessage.set(message);
 				failedNotificationVisible.set(true);
 				setTimeout(() => failedNotificationVisible.set(false), 4000);
@@ -104,6 +123,7 @@
 		} catch (err) {
 			console.error('OTP sending failed:', err);
 			message = 'Something went wrong while sending OTP.';
+			setTimeout(() => (message = ''), 3000);
 		}
 	}
 
@@ -163,11 +183,25 @@
 							localStorage.setItem(`user_designation-${userId}`, designation);
 						}
 
+						// ✅ Immediately update the store
+						user.set({
+							id: userId,
+							name: userName || null,
+							email: userEmail || null,
+							token: token
+						});
+
 						message = 'Login successful!';
+						setTimeout(() => (message = ''), 3000);
 						goto('/');
+						setTimeout(() => {
+							visible = false;
+						}, 1000);
+						// await tick();
 					} else {
 						console.error('Login failed: Incomplete user data received.');
 						message = loginData.error || 'Login failed after verification.';
+						setTimeout(() => (message = ''), 3000);
 					}
 				}
 			} else {
@@ -176,6 +210,7 @@
 		} catch (err) {
 			console.error('OTP verification or login error:', err);
 			message = 'Something went wrong. Please try again.';
+			setTimeout(() => (message = ''), 3000);
 		}
 
 		// Show error toast if needed
@@ -191,43 +226,18 @@
 	function toggleOtpVisibility() {
 		showOtp = !showOtp;
 	}
-
-	function goBackHome() {
-		goto('/'); // change '/' to your desired route if needed
-	}
-	function signUp() {
-		goto('/signup'); // change '/' to your desired route if needed
-	}
 </script>
 
 <FailedNotification message={$failedNotificationMessage} visible={$failedNotificationVisible} />
 
-<div class="flex min-h-screen items-center justify-center bg-gray-100 p-4 dark:bg-gray-900">
+<!-- <div class="flex min-h-screen items-center justify-center bg-gray-100 p-4 dark:bg-gray-900">
 	<div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-lg dark:bg-gray-800">
-		<div class="flex items-center justify-between">
-			<button
-				on:click={goBackHome}
-				class="absolute top-4 left-4 flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-			>
-				<i class="fas fa-arrow-left text-blue-500"></i>
-				<span>Home</span>
-			</button>
-			<!-- <button
-				on:click={signUp}
-				class="absolute top-4 right-4 flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-			>
-				<i class="fas fa-user-plus text-blue-500"></i>
-
-				<span>Signup</span>
-			</button> -->
-		</div>
-
 		<h2 class="mb-6 text-center text-2xl font-semibold dark:text-white">
-			{step === 1 ? 'Login in with Phone' : 'Enter OTP'}
+			{step === 1 ? 'Sign in with Phone' : 'Enter OTP'}
 		</h2>
 
 		{#if step === 1}
-			<!-- Step 1: Send OTP -->
+		
 			<form on:submit|preventDefault={sendOtp}>
 				<input
 					type="tel"
@@ -246,7 +256,7 @@
 				</button>
 			</form>
 		{:else}
-			<!-- Step 2: Verify OTP -->
+			
 			<form on:submit|preventDefault={verifyOtp}>
 				<div class="relative">
 					<input
@@ -257,7 +267,7 @@
 						class="mb-4 w-full rounded-lg border p-3 pr-12 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 					/>
 
-					<!-- Eye icon -->
+					
 					<button
 						type="button"
 						aria-label="toggle button"
@@ -277,4 +287,70 @@
 			</form>
 		{/if}
 	</div>
-</div>
+</div> -->
+
+{#if visible}
+	<div
+		class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center p-2 backdrop-blur-sm"
+	>
+		<div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-lg dark:bg-gray-800">
+			<h2 class="mb-4 text-center text-2xl font-semibold dark:text-white">
+				{step === 1 ? 'Login with Phone' : 'Enter OTP'}
+			</h2>
+
+			{#if message}
+				<p class="mb-2 text-center text-sm text-red-600 dark:text-red-400">{message}</p>
+			{/if}
+
+			{#if step === 1}
+				<form on:submit|preventDefault={sendOtp}>
+					<input
+						type="tel"
+						bind:value={phone}
+						maxlength="10"
+						placeholder="Enter 10-digit phone"
+						class="mb-4 w-full rounded-lg border p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+					/>
+					<button
+						type="submit"
+						class="w-full rounded-lg bg-blue-600 p-3 text-white hover:bg-blue-700"
+					>
+						Send OTP
+					</button>
+				</form>
+			{:else}
+				<form on:submit|preventDefault={verifyOtp}>
+					<div class="relative">
+						<input
+							type={showOtp ? 'text' : 'password'}
+							bind:value={otp}
+							placeholder="Enter OTP"
+							class="mb-4 w-full rounded-lg border p-3 pr-12 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+						/>
+						<button
+							aria-label="visibility button"
+							type="button"
+							on:click={toggleOtpVisibility}
+							class="absolute top-3 right-3 text-gray-500 dark:text-gray-300"
+						>
+							<i class={`fas ${showOtp ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+						</button>
+					</div>
+					<button
+						type="submit"
+						class="w-full rounded-lg bg-green-600 p-3 text-white hover:bg-green-700"
+					>
+						Verify OTP
+					</button>
+				</form>
+			{/if}
+
+			<button
+				on:click={closePopup}
+				class="mt-4 w-full rounded-lg border border-gray-300 bg-gray-100 p-3 text-gray-600 hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+			>
+				Cancel
+			</button>
+		</div>
+	</div>
+{/if}
