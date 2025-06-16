@@ -44,7 +44,8 @@
 		console.log('userData:', userData);
 
 		if (userCheck.ok && userData.message === 'User exists') {
-			const res = await fetch('/api/send-otp', {
+			// const res = await fetch('/api/send-otp', {
+			const res = await fetch('http://172.105.252.34:4000/api/send-otp', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ phone: fullPhone })
@@ -84,7 +85,8 @@
 		console.log('Verifying OTP for:', fullPhone);
 
 		try {
-			const res = await fetch('/api/verify-otp', {
+			// const res = await fetch('/api/verify-otp', {
+			const res = await fetch('http://172.105.252.34:4000/api/verify-otp', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ phone: fullPhone, code: otp })
