@@ -28,6 +28,7 @@
 	import LoginPopNotification from './loginComponents/LoginPopNotification.svelte';
 
 	const baseUrl = import.meta.env.VITE_API_BASE_URL;
+	const baseUrlForCustomQuery = import.meta.env.VITE_API_BASE_URL_FOR_CUSTOM_QUERY;
 
 	let showLoginPopup = false;
 
@@ -657,8 +658,8 @@
 
 		if (currentActiveChatId === null) return;
 
-		let uid;
-		userId.subscribe((v) => (uid = v))();
+		let uid = currentUserId;
+		// userId.subscribe((v) => (uid = v))();
 		console.log('uid from send func:', uid);
 
 		const userMsg = { sender: 'user', text: currentUserInput.trim() };
@@ -684,7 +685,7 @@
 		scrollToBottom();
 
 		try {
-			const response = await fetch(`${baseUrl}/custom-journal-query`, {
+			const response = await fetch(`http://45.79.125.99:7778/custom-journal-query`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
