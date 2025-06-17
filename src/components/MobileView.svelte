@@ -1122,7 +1122,7 @@
 				{#each $journalData as post, index}
 					<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">
 						<!-- Post Image -->
-						<a href={post.article_url} target="_blank" rel="noopener noreferrer">
+						<a href={post.article_url} rel="noopener noreferrer">
 							<img
 								src={post.card_url ? post.card_url : post.template_url}
 								alt="post"
@@ -1203,7 +1203,7 @@
 							{#each msg.articles as post, index}
 								<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">
 									<!-- Post Image -->
-									<a href={post.article_url} target="_blank" rel="noopener noreferrer">
+									<a href={post.article_url} rel="noopener noreferrer">
 										<img
 											src={post.card_url ? post.card_url : post.template_url}
 											alt="post"
@@ -1363,7 +1363,6 @@
 							{#each $savedPosts as post (post.article_url)}
 								<a
 									href={post.article_url}
-									target="_blank"
 									rel="noopener noreferrer"
 									class="mb-2 block cursor-pointer truncate rounded bg-gray-100 p-2 text-sm text-blue-600 hover:underline dark:bg-gray-800 dark:text-blue-400"
 									title={post.article_name}
@@ -1515,7 +1514,6 @@
 							{#each $savedPosts as post (post.article_url)}
 								<a
 									href={post.article_url}
-									target="_blank"
 									rel="noopener noreferrer"
 									class="mb-2 block cursor-pointer truncate rounded bg-gray-100 p-2 text-sm text-blue-600 hover:underline dark:bg-gray-800 dark:text-blue-400"
 									title={post.article_name}
