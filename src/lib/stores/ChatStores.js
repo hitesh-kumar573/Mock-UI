@@ -37,6 +37,7 @@ if (typeof window !== 'undefined') {
 }
 
 export const journalData = writable([]); // to hold fetched data
+export const newsData = writable([]); // to hold fetched data
 export const userId = writable('1'); // Assuming default or dynamic user ID
 
 let initialUser = {

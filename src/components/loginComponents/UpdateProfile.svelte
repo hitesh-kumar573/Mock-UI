@@ -48,9 +48,28 @@
 			const storedEmail = localStorage.getItem(`user_email-${storedPhone}`);
 			const storedDesignation = localStorage.getItem(`user_designation-${storedPhone}`); // if you're storing this too
 
+			const storedJournalSpec = localStorage.getItem(`journal_specialization-${storedPhone}`);
+			const storedNewsSpec = localStorage.getItem(`news_specialization-${storedPhone}`);
+
 			if (storedName) name = storedName;
 			if (storedEmail) email = storedEmail;
 			if (storedDesignation) designation = storedDesignation;
+
+			if (storedJournalSpec) {
+				try {
+					selectedJournal = JSON.parse(storedJournalSpec);
+				} catch (err) {
+					console.error('Error parsing storedJournalSpec:', err);
+				}
+			}
+
+			if (storedNewsSpec) {
+				try {
+					selectedNews = JSON.parse(storedNewsSpec);
+				} catch (err) {
+					console.error('Error parsing storedNewsSpec:', err);
+				}
+			}
 		}
 	});
 
@@ -172,6 +191,16 @@
 			const loginData = await loginRes.json();
 			console.log('Login response:', loginData);
 
+			if (journal_specialization?.length) {
+				localStorage.setItem(
+					`journal_specialization-${phone}`,
+					JSON.stringify(journal_specialization)
+				);
+			}
+			if (news_specialization?.length) {
+				localStorage.setItem(`news_specialization-${phone}`, JSON.stringify(news_specialization));
+			}
+
 			if (loginData) {
 				phone = loginData.user_id;
 				let token = loginData.access_token;
@@ -280,23 +309,6 @@
 			class="mb-3 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 		/>
 
-		<!-- <div class="relative mb-3">
-			<input
-				type={showPassword ? 'text' : 'password'}
-				bind:value={password}
-				placeholder="Password"
-				class="w-full rounded-lg border p-2.5 pr-12 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-			/>
-			<button
-				aria-label="toggle button"
-				type="button"
-				on:click={togglePasswordVisibility}
-				class="absolute top-2.5 right-3 text-gray-500 dark:text-gray-300"
-			>
-				<i class={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-lg`}></i>
-			</button>
-		</div> -->
-
 		<input
 			bind:value={designation}
 			placeholder="Designation (e.g., Dr.)"
@@ -307,7 +319,6 @@
 		<div class="mb-4 focus:ring-0 focus:outline-none active:ring-0">
 			<label for="journal" class="mb-1 block text-sm font-medium dark:text-white">
 				Journal Specialization:
-				<!-- <span class="text-red-500">*</span> -->
 			</label>
 			<select
 				multiple
@@ -316,7 +327,11 @@
 			>
 				{#each $journalSpecializationOptions as option}
 					<option
-						class="my-1 rounded-md border border-gray-300 p-1 text-white"
+						class={`my-1 rounded-md border border-gray-300 p-1 text-white ${
+							selectedJournal.includes(option.value)
+								? 'bg-blue-500 text-white'
+								: ''
+						}`}
 						value={option.value}
 					>
 						{option.label}
@@ -329,7 +344,6 @@
 		<div class="mb-5">
 			<label for="news" class="mb-1 block text-sm font-medium dark:text-white">
 				News Specialization:
-				<!-- <span class="text-red-500">*</span> -->
 			</label>
 			<select
 				multiple
@@ -338,7 +352,11 @@
 			>
 				{#each $newsSpecializationOptions as option}
 					<option
-						class="my-1 rounded-md border border-gray-300 p-1 text-white"
+						class={`my-1 rounded-md border border-gray-300 p-1 text-white ${
+							selectedNews.includes(option.value)
+								? 'bg-blue-500 text-white'
+								: ''
+						}`}
 						value={option.value}
 					>
 						{option.label}

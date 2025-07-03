@@ -15,7 +15,8 @@
 		endDate,
 		userId,
 		journalData,
-		user
+		user,
+		newsData
 	} from '$lib/stores/ChatStores';
 
 	import FailedNotification from './FailedNotification.svelte';
@@ -26,6 +27,8 @@
 	import 'flatpickr/dist/flatpickr.min.css';
 	import { get } from 'svelte/store';
 	import LoginPopNotification from './loginComponents/LoginPopNotification.svelte';
+	import MobileJournalView from './MobileJournalView.svelte';
+	import MobileNewsView from './MobileNewsView.svelte';
 
 	const baseUrl = import.meta.env.VITE_API_BASE_URL;
 	const baseUrlForCustomQuery = import.meta.env.VITE_API_BASE_URL_FOR_CUSTOM_QUERY;
@@ -151,19 +154,6 @@
 		goto('/login');
 	}
 
-	// onMount(async () => {
-	// 	const base64Image = await generateCardImage(
-	// 		'/template.png',
-	// 		'Decoding Pw1 Imprinting in the Postischemic Heart: A Novel Antifibrotic Strategy?'
-	// 	);
-
-	// 	console.log('🔍 Generated Base64 Image:', base64Image); // <-- yeh line important hai
-
-	// 	const img = new Image();
-	// 	img.src = 'data:image/png;base64,' + base64Image;
-	// 	document.body.appendChild(img);
-	// });
-
 	async function generateCardImage(templateUrl, titleText) {
 		const img = new Image();
 		img.crossOrigin = 'anonymous';
@@ -235,16 +225,19 @@
 				try {
 					console.log(`Processing item ${index}:`, item);
 
-					if (!item.template_url || !item.article_title) {
+					const isNews = item.type === 'news';
+
+					// Validate required fields
+					if (!item.template_url || !(isNews ? item.title : item.article_title)) {
 						console.warn('⚠️ Invalid item found:', item);
 						return null; // skip invalid
 					}
 
-					// Default to using article_title
-					let titleToUse = item.article_title;
+					// Decide title to use (for card generation)
+					let titleToUse = isNews ? item.title : item.article_title;
 
-					// If title is too long, attempt to get it from openai_content
-					if (item.article_title.length > 50 && item.openai_content) {
+					// Try OpenAI title if article_title is too long (only for journal)
+					if (!isNews && item.article_title.length > 50 && item.openai_content) {
 						try {
 							const parsed = JSON.parse(item.openai_content);
 							if (parsed?.title) {
@@ -262,9 +255,9 @@
 					console.log(`✅ base64 (${index}):`, base64Image.slice(0, 50) + '...'); // partial log
 
 					return {
-						article_name: item.article_title,
-						article_type: 'article',
-						specialization: item.specialization || '',
+						article_name: isNews ? item.title : item.article_title,
+						article_type: isNews ? 'news' : 'article',
+						specialization: isNews ? '' : item.specialization || '',
 						card_base64: base64Image
 					};
 				} catch (err) {
@@ -338,44 +331,80 @@
 			const data = await res.json();
 			console.log('response data:', data);
 
-			if (res.ok) {
-				// const articles = data?.journal_articles || [];
-				const articles = (data?.journal_articles || []).filter(
-					(item) => item.article_title !== 'Issue Information'
-				);
-
-				const validArticles = articles.filter(
-					(item) => item.card_url && item.card_url !== 'null' && item.card_url.trim() !== ''
-				);
-
-				const missingCardUrlArticles = articles.filter(
-					(item) => !item.card_url || item.card_url === 'null' || item.card_url.trim() === ''
-				);
-
-				console.log('valid articles:', validArticles);
-				console.log('missing Card Url articles:', missingCardUrlArticles);
-
-				if (missingCardUrlArticles.length === 0) {
-					// All articles already have card_url → use as-is
-					journalData.set(articles);
-					console.log('Fetched journal/news articles:', $journalData);
-				} else {
-					// Some articles are missing card_url → Only pass those to generator
-					let generatedImageData = await generateAndUploadCards(missingCardUrlArticles);
-
-					console.log('generatedImageData:', generatedImageData);
-
-					let generatedData = generatedImageData?.results?.results || [];
-
-					// 🧠 Combine old valid + new generated
-					const finalCombined = [...validArticles, ...generatedData];
-
-					journalData.set(finalCombined);
-					console.log('Mixed valid + generated articles:', $journalData);
-				}
-			} else {
-				console.error('Error fetching journal/news:', data);
+			if (!res.ok) {
+				console.error('Fetch failed:', data);
+				return;
 			}
+
+			// Journal Articles
+			const rawJournal = (data?.journal_articles || []).filter(
+				(item) => item.article_title !== 'Issue Information'
+			);
+			const validJournal = rawJournal.filter(
+				(item) => item.card_url && item.card_url.trim() !== '' && item.card_url !== 'null'
+			);
+			const missingJournal = rawJournal.filter(
+				(item) => !item.card_url || item.card_url.trim() === '' || item.card_url === 'null'
+			);
+
+			console.log('raw Journal:', rawJournal);
+			console.log('valid Journal:', validJournal);
+			console.log('missing Journal:', missingJournal);
+
+			// News Articles
+			const rawNews = data?.news_articles || [];
+			const validNews = rawNews.filter(
+				(item) => item.card_url && item.card_url.trim() !== '' && item.card_url !== 'null'
+			);
+			const missingNews = rawNews.filter(
+				(item) => !item.card_url || item.card_url.trim() === '' || item.card_url === 'null'
+			);
+
+			console.log('raw news:', rawNews);
+			console.log('valid news:', validNews);
+			console.log('missing news:', missingNews);
+
+			// Combine missing for generation
+			const allMissing = [
+				...missingJournal.map((item) => ({ ...item, type: 'journal' })),
+				...missingNews.map((item) => ({ ...item, type: 'news' }))
+			];
+
+			console.log('all missing:', allMissing);
+
+			// return;
+
+			let generatedCards = [];
+			if (allMissing.length > 0) {
+				const generated = await generateAndUploadCards(allMissing);
+				generatedCards = generated?.results?.results || [];
+				console.log('generated:', generated);
+			}
+
+			// Split generated cards by type
+			// const generatedJournal = generatedCards.filter((item) => item.type === 'journal');
+			// const generatedNews = generatedCards.filter((item) => item.type === 'news');
+
+			const generatedJournal = generatedCards.filter(
+				(item) => item.specialization && item.specialization.trim() !== ''
+			);
+			const generatedNews = generatedCards.filter(
+				(item) => !item.specialization || item.specialization.trim() === ''
+			);
+
+			console.log('generatedJournal:', generatedJournal);
+			console.log('generatedNews:', generatedNews);
+
+			// Final combine
+			const finalJournal = [...validJournal, ...generatedJournal];
+			const finalNews = [...validNews, ...generatedNews];
+
+			// Set in stores
+			journalData.set(finalJournal);
+			newsData.set(finalNews);
+
+			console.log('Final Journal Articles:', finalJournal);
+			console.log('Final News Articles:', finalNews);
 		} catch (error) {
 			console.error('Fetch failed:', error);
 		}
@@ -434,7 +463,7 @@
 
 			chats.set(formattedChats);
 
-			// ✅ Auto-select first chat if any exist
+			// Auto-select first chat if any exist
 			if (formattedChats.length > 0) {
 				selectChat(formattedChats[0].id); // auto-load first chat's messages
 			}
@@ -461,7 +490,7 @@
 		// const newId = get(chatIdCounter); // local unique ID
 
 		if (isGuest) {
-			// 🟡 Guest user – Create temp chat locally
+			//  Guest user – Create temp chat locally
 			const tempChat = {
 				id: newId,
 				title: 'New Chat',
@@ -696,7 +725,7 @@
 			console.log('response:', response);
 
 			const result = await response.json();
-			console.log('result:', result);
+			console.log('query result:', result);
 			// return;
 
 			if (result?.results?.length) {
@@ -739,7 +768,26 @@
 					console.log('Guest mode: message not saved to DB');
 				}
 
-				const articles = result?.results;
+				// const articles = result?.results;
+				const articles = result?.results.map((article) => {
+					const isNews = article.title && article.url;
+					const isJournal = article.article_title && article.article_url;
+
+					return {
+						article_type: isNews ? 'news' : 'article',
+						article_title: article.article_title || article.title || 'Untitled',
+						article_url: article.article_url || article.url || '',
+						card_url: article.card_url || article.template_url || '',
+						openai_content:
+							article.openai_content ||
+							(article.summary ? JSON.stringify({ objective: [article.summary] }) : null),
+						specialization: article.specialization || '',
+						date: article.date || article.article_publication_date || ''
+					};
+				});
+
+				console.log('articles:', articles);
+
 				const cards = result?.results.map((article) => {
 					let finalCardUrl = article.card_url;
 					if (!finalCardUrl && article.template_url && article.article_title) {
@@ -791,29 +839,6 @@
 			chatContainer.scrollTop = chatContainer.scrollHeight;
 		}
 	}
-
-	// function deleteChat(chatId) {
-	// 	chats.update((prev) => {
-	// 		if (prev.length <= 1) {
-	// 			failedNotificationMessage.set('At least one chat must remain.');
-	// 			failedNotificationVisible.set(true);
-	// 			setTimeout(() => failedNotificationVisible.set(false), 4000);
-	// 			return prev;
-	// 		}
-
-	// 		const filteredChats = prev.filter((chat) => chat.id !== chatId);
-
-	// 		let currentActiveId;
-	// 		activeChatId.subscribe((v) => (currentActiveId = v))();
-
-	// 		if (chatId === currentActiveId) {
-	// 			activeChatId.set(filteredChats[0]?.id || null);
-	// 			messages.set(filteredChats[0]?.messages || []);
-	// 		}
-
-	// 		return filteredChats;
-	// 	});
-	// }
 
 	async function deleteChat(chatId) {
 		const currentUserId = localStorage.getItem('user_id');
@@ -908,28 +933,35 @@
 		}
 		console.log('Current user id:', currentUserId);
 
-		// const currentUser = get(user);
-		// const currentUser = localStorage.getItem('user_id');
-		// console.log('Current user:', currentUser);
-
 		if (!currentUserId || !currentUserToken) {
-			// alert('Please login to bookmark posts.');
-			// failedNotificationMessage.set('Please login to bookmark the posts.');
-			// failedNotificationVisible.set(true);
-			// setTimeout(() => failedNotificationVisible.set(false), 4000);
 			showLoginPopup = false;
-
 			await tick();
 			showLoginPopup = true;
 			return;
 		}
 
-		const isBookmarked = bookmarked.has(post.article_url); // or post.id if exists
+		// 🔍 Determine if it's a journal or news article
+		// const isJournal = post.article_title || post.article_name || post.article_url;
+		const isJournal = !!(post.article_title || post.article_name || post.article_url);
+		const articleName = post.article_title || post.article_name || post.title || 'Untitled';
+		const articleUrl = post.article_url || post.url || '';
+		const articleType = isJournal ? 'article' : 'news';
+
+		const isBookmarked = bookmarked.has(articleUrl);
+
+		// const isBookmarked = bookmarked.has(post.article_url); // or post.id if exists
 
 		console.log('isBookmarked', isBookmarked);
 		const url = isBookmarked ? `${baseUrl}/remove_bookmarks` : `${baseUrl}/add_bookmarks`;
 
 		console.log('url', url);
+
+		console.log('→ Toggling bookmark:', {
+			articleName,
+			articleUrl,
+			articleType,
+			isBookmarked
+		});
 
 		try {
 			const res = await fetch(url, {
@@ -940,8 +972,8 @@
 				},
 				body: JSON.stringify({
 					user_id: currentUserId,
-					article_name: post.article_title, // this is the article_name in API
-					article_type: 'article' // or 'news' if it's a news post
+					article_name: articleName,
+					article_type: articleType
 				})
 			});
 
@@ -951,9 +983,9 @@
 			// Toggle local state only if request succeeds
 			if (res.ok) {
 				if (isBookmarked) {
-					bookmarked.delete(post.article_url);
+					bookmarked.delete(articleUrl);
 				} else {
-					bookmarked.add(post.article_url);
+					bookmarked.add(articleUrl);
 				}
 				bookmarked = new Set(bookmarked); // trigger reactivity
 
@@ -1110,82 +1142,22 @@
 
 	<!-- CLASSICAL VIEW -->
 	{#if $isMobileView === 'classical'}
-		<div class="flex-1 overflow-y-auto bg-gray-100 p-1 pt-[12vh] dark:bg-gray-900">
-			{#if $journalData?.length === 0}
-				<!-- Spinner while data is loading -->
-				<div class="flex h-[60vh] items-center justify-center">
-					<div
-						class="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"
-					></div>
-				</div>
-			{:else}
-				{#each $journalData as post, index}
-					<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">
-						<!-- Post Image -->
-						<a href={post.article_url} rel="noopener noreferrer">
-							<img
-								src={post.card_url ? post.card_url : post.template_url}
-								alt="post"
-								class="h-[28vh] w-full cursor-pointer rounded-t-md object-cover"
-							/>
-						</a>
+		<MobileJournalView
+			journalData={$journalData}
+			{expandedCards}
+			{toggleCard}
+			{toggleBookmark}
+			{bookmarked}
+			user={$user}
+		/>
 
-						<!-- Actions Bar -->
-						<div class="flex items-center justify-between px-3 pt-2">
-							<!-- Caption -->
-							<div class="text-gray-700 dark:text-gray-200">
-								<span class="font-bold"><p><strong>Title:</strong> {post.article_title}</p></span>
-								<!-- Parsed content -->
-								{#if post.openai_content}
-									{#await JSON.parse(post.openai_content) then parsed}
-										<div class="transition-max-height overflow-hidden">
-											<!-- Objective is always shown -->
-											<p><strong>Objective:</strong> {parsed.objective?.join(', ')}</p>
-											{#if expandedCards.has(index)}
-												<p><strong>Results:</strong> {parsed.results}</p>
-												<p><strong>Conclusion:</strong> {parsed.conclusion?.join(', ')}</p>
-												{#if $user.token}
-													<p>
-														<strong>Revelance For Doctor:</strong>
-														{parsed.relevance_for_doctor?.join(', ')}
-													</p>
-												{/if}
-											{/if}
-										</div>
-									{:catch}
-										<p class="text-red-500">Invalid AI content format</p>
-									{/await}
-								{:else}
-									<p class="text-gray-500 italic">No AI content available</p>
-								{/if}
-							</div>
-						</div>
-
-						<div class="relative flex items-center justify-between px-4 py-2">
-							<!-- Bookmark -->
-							<button
-								aria-label="bookmark"
-								class={`fa-bookmark cursor-pointer ${
-									bookmarked.has(post.article_url) ? 'fas text-yellow-500' : 'far text-gray-600'
-								} hover:text-yellow-500 dark:text-gray-300`}
-								on:click={() => toggleBookmark(post)}
-							></button>
-							<!-- Read More / Read Less -->
-							<button
-								class="inline-block rounded-md bg-blue-600 px-2 py-1 text-sm font-medium text-white transition duration-200 hover:bg-blue-700 focus:ring-0 focus:outline-none dark:focus:ring-offset-gray-800"
-								on:click={() => toggleCard(index)}
-							>
-								{#if expandedCards.has(index)}
-									Read Less <i class="fas fa-chevron-up ml-1"></i>
-								{:else}
-									Read More <i class="fas fa-chevron-down ml-1"></i>
-								{/if}
-							</button>
-						</div>
-					</div>
-				{/each}
-			{/if}
-		</div>
+		<MobileNewsView
+			newsData={$newsData}
+			{expandedCards}
+			{toggleCard}
+			{toggleBookmark}
+			{bookmarked}
+		/>
 	{/if}
 
 	<!-- ASSISTED VIEW (ChatGPT-like) -->
@@ -1246,7 +1218,7 @@
 										<button
 											aria-label="bookmark"
 											class={`fa-bookmark cursor-pointer ${
-												bookmarked.has(post.article_url)
+												bookmarked.has(post.article_url || post.url)
 													? 'fas text-yellow-500'
 													: 'far text-gray-600'
 											} hover:text-yellow-500 dark:text-gray-300`}
