@@ -17,7 +17,7 @@
 			></div>
 		</div>
 	{:else}
-		<SectionHeader title="Rx News Articles" />
+		<SectionHeader title="News Articles" />
 
 		{#each newsData as post, index}
 			<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">

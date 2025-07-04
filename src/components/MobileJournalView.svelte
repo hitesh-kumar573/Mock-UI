@@ -18,7 +18,7 @@
 			></div>
 		</div>
 	{:else}
-		<SectionHeader title="Rx Journal Articles" />
+		<SectionHeader title="Journal Articles" />
 		{#each journalData as post, index}
 			<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">
 				<!-- Post Image -->
