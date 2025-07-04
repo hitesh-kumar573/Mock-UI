@@ -61,7 +61,7 @@
 					></button>
 					<!-- Read More / Read Less -->
 					<button
-						class="inline-block rounded-md bg-blue-600 px-2 py-1 text-sm font-medium text-white transition duration-200 hover:bg-blue-700 focus:ring-0 focus:outline-none dark:focus:ring-offset-gray-800"
+						class="inline-block rounded-md bg-blue-500 px-2 py-1 text-sm font-medium text-white transition duration-200 hover:bg-blue-600 focus:ring-0 focus:outline-none dark:focus:ring-offset-gray-800"
 						on:click={() => toggleCard(index)}
 					>
 						{#if expandedCards.has(index)}
