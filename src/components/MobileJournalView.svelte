@@ -1,5 +1,6 @@
 <script>
 	//@ts-nocheck
+	import SectionHeader from './SectionHeader.svelte';
 	export let journalData = [];
 	export let expandedCards;
 	export let toggleCard;
@@ -17,6 +18,7 @@
 			></div>
 		</div>
 	{:else}
+		<SectionHeader title="Rx Journal Articles" />
 		{#each journalData as post, index}
 			<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">
 				<!-- Post Image -->

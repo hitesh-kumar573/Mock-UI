@@ -1,5 +1,6 @@
 <script>
 	//@ts-nocheck
+	import SectionHeader from './SectionHeader.svelte';
 	export let newsData = [];
 	export let expandedCards;
 	export let toggleCard;
@@ -7,7 +8,7 @@
 	export let bookmarked;
 </script>
 
-<div class="flex-1 overflow-y-auto bg-gray-100 p-1 pt-[12vh] dark:bg-gray-900">
+<div class="flex-1 overflow-y-auto bg-gray-100 p-1 pt-[3vh] dark:bg-gray-900">
 	{#if newsData?.length === 0}
 		<!-- Spinner while data is loading -->
 		<div class="flex h-[60vh] items-center justify-center">
@@ -16,6 +17,8 @@
 			></div>
 		</div>
 	{:else}
+		<SectionHeader title="Rx News Articles" />
+
 		{#each newsData as post, index}
 			<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">
 				<!-- Post Image -->

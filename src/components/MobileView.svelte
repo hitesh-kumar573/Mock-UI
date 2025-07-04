@@ -29,6 +29,7 @@
 	import LoginPopNotification from './loginComponents/LoginPopNotification.svelte';
 	import MobileJournalView from './MobileJournalView.svelte';
 	import MobileNewsView from './MobileNewsView.svelte';
+	import SectionHeader from './SectionHeader.svelte';
 
 	const baseUrl = import.meta.env.VITE_API_BASE_URL;
 	const baseUrlForCustomQuery = import.meta.env.VITE_API_BASE_URL_FOR_CUSTOM_QUERY;
@@ -592,13 +593,47 @@
 				const data = await res.json();
 				console.log('data:', data);
 
-				parsedMessages = data.flatMap((item) => [
-					{ sender: 'user', text: item.user_text },
-					{
-						sender: 'bot',
-						articles: item.response_json?.results || []
-					}
-				]);
+				// parsedMessages = data.flatMap((item) => [
+				// 	{ sender: 'user', text: item.user_text },
+				// 	{
+				// 		sender: 'bot',
+				// 		articles: item.response_json?.results || []
+				// 	}
+				// ]);
+				parsedMessages = data.flatMap((item) => {
+					// 🌟 Normalize and map articles
+					const articles = (item.response_json?.results || []).map((article) => {
+						const isNews = !!(article.article_headline || article.article_description);
+						const isJournal = !!article.article_title || article.openai_content;
+
+						return {
+							article_type: isNews ? 'news' : 'article',
+							title: article.article_headline || article.article_title || 'Untitled',
+							summary: article.article_description || article.article_summary || '',
+							article_title: article.article_title || article.article_headline || 'Untitled',
+							article_url: article.article_url || '',
+							card_url: article.card_url || article.template_url || '',
+							openai_content:
+								article.openai_content ||
+								(article.article_description
+									? JSON.stringify({ objective: [article.article_description] })
+									: null),
+							specialization: article.specialization || article.article_health_speciality || '',
+							date:
+								article.date ||
+								article.article_modified_date ||
+								article.article_publication_date ||
+								''
+						};
+					});
+
+					console.log('Mapped Articles:', articles);
+
+					return [
+						{ sender: 'user', text: item.user_text },
+						{ sender: 'bot', articles }
+					];
+				});
 			}
 
 			chats.update((c) =>
@@ -768,21 +803,52 @@
 					console.log('Guest mode: message not saved to DB');
 				}
 
+				const rawArticles = result?.results || [];
+
+				// Separate into missing & valid card_url sets
+				const validArticles = rawArticles.filter(
+					(a) => a.card_url && a.card_url.trim() !== '' && a.card_url !== 'null'
+				);
+
+				const missingArticles = rawArticles.filter(
+					(a) => !a.card_url || a.card_url.trim() === '' || a.card_url === 'null'
+				);
+
+				// Add type info for generator
+				const allMissing = missingArticles.map((item) => ({
+					...item,
+					type: item.specialization && item.specialization.trim() !== '' ? 'journal' : 'news'
+				}));
+
+				// If any card_url is missing, generate
+				let generatedCards = [];
+				if (allMissing.length > 0) {
+					const generated = await generateAndUploadCards(allMissing);
+					generatedCards = generated?.results?.results || [];
+				}
+
+				// Combine
+				const allArticles = [...validArticles, ...generatedCards];
+
 				// const articles = result?.results;
-				const articles = result?.results.map((article) => {
-					const isNews = article.title && article.url;
+				const articles = allArticles.map((article) => {
+					const isNews = article.article_headline && article.article_url;
 					const isJournal = article.article_title && article.article_url;
 
 					return {
 						article_type: isNews ? 'news' : 'article',
-						article_title: article.article_title || article.title || 'Untitled',
-						article_url: article.article_url || article.url || '',
+						article_title: article.article_title || article.article_headline || 'Untitled',
+						title: article.article_headline || article.article_title || 'Untitled',
+						summary: article.article_description || '',
+						article_url: article.article_url || '',
 						card_url: article.card_url || article.template_url || '',
 						openai_content:
 							article.openai_content ||
-							(article.summary ? JSON.stringify({ objective: [article.summary] }) : null),
-						specialization: article.specialization || '',
-						date: article.date || article.article_publication_date || ''
+							(article.article_description
+								? JSON.stringify({ objective: [article.article_description] })
+								: null),
+						specialization: article.specialization || article.article_health_speciality || '',
+						date: article.date || article.article_modified_date || ''
 					};
 				});
 
@@ -945,7 +1011,12 @@
 		const isJournal = !!(post.article_title || post.article_name || post.article_url);
 		const articleName = post.article_title || post.article_name || post.title || 'Untitled';
 		const articleUrl = post.article_url || post.url || '';
-		const articleType = isJournal ? 'article' : 'news';
+
+		const articleType = post.article_type
+			? post.article_type.toLowerCase()
+			: isJournal
+				? 'article'
+				: 'news';
 
 		const isBookmarked = bookmarked.has(articleUrl);
 
@@ -1142,22 +1213,26 @@
 
 	<!-- CLASSICAL VIEW -->
 	{#if $isMobileView === 'classical'}
-		<MobileJournalView
-			journalData={$journalData}
-			{expandedCards}
-			{toggleCard}
-			{toggleBookmark}
-			{bookmarked}
-			user={$user}
-		/>
+		{#if $journalData.length > 0}
+			<MobileJournalView
+				journalData={$journalData}
+				{expandedCards}
+				{toggleCard}
+				{toggleBookmark}
+				{bookmarked}
+				user={$user}
+			/>
+		{/if}
 
-		<MobileNewsView
-			newsData={$newsData}
-			{expandedCards}
-			{toggleCard}
-			{toggleBookmark}
-			{bookmarked}
-		/>
+		{#if $newsData.length > 0}
+			<MobileNewsView
+				newsData={$newsData}
+				{expandedCards}
+				{toggleCard}
+				{toggleBookmark}
+				{bookmarked}
+			/>
+		{/if}
 	{/if}
 
 	<!-- ASSISTED VIEW (ChatGPT-like) -->
@@ -1185,30 +1260,47 @@
 
 									<!-- Content -->
 									<div class="px-4 py-2 text-gray-800 dark:text-gray-200">
-										<h3 class="text-md mb-1 font-semibold">Title: {post.article_title}</h3>
+										{#if post.article_type === 'news'}
+											<!-- News Format -->
+											<p class="font-semibold"><strong>Title:</strong> {post.title}</p>
 
-										<!-- AI Summary Content -->
-										{#if post.openai_content}
-											{#await JSON.parse(post.openai_content) then parsed}
-												<div class="transition-max-height overflow-hidden">
-													<!-- Objective is always shown -->
-													<p><strong>Objective:</strong> {parsed.objective?.join(', ')}</p>
-													{#if expandedCards.has(index)}
-														<p><strong>Results:</strong> {parsed.results}</p>
-														<p><strong>Conclusion:</strong> {parsed.conclusion?.join(', ')}</p>
-														{#if $user.token}
-															<p>
-																<strong>Revelance For Doctor:</strong>
-																{parsed.relevance_for_doctor?.join(', ')}
-															</p>
-														{/if}
-													{/if}
-												</div>
-											{:catch}
-												<p class="text-red-500">Invalid AI content format</p>
-											{/await}
+											{#if post.summary}
+												{#if expandedCards.has(index)}
+													<p><strong>Summary:</strong> {post.summary}</p>
+												{/if}
+											{:else}
+												<p class="text-gray-500 italic">No summary available</p>
+											{/if}
 										{:else}
-											<p class="text-gray-500 italic">No AI content available</p>
+											<!-- Journal/AI Summary Format -->
+											<h3 class="text-md mb-1 font-semibold">Title: {post.article_title}</h3>
+											{#if post.openai_content}
+												{#await JSON.parse(post.openai_content) then parsed}
+													<div class="transition-max-height space-y-1 overflow-hidden">
+														{#if parsed.objective?.length}
+															<p><strong>Objective:</strong> {parsed.objective.join(', ')}</p>
+														{/if}
+														{#if expandedCards.has(index)}
+															{#if parsed.results}
+																<p><strong>Results:</strong> {parsed.results}</p>
+															{/if}
+															{#if parsed.conclusion?.length}
+																<p><strong>Conclusion:</strong> {parsed.conclusion.join(', ')}</p>
+															{/if}
+															{#if $user.token && parsed.relevance_for_doctor?.length}
+																<p>
+																	<strong>Relevance For Doctor:</strong>
+																	{parsed.relevance_for_doctor.join(', ')}
+																</p>
+															{/if}
+														{/if}
+													</div>
+												{:catch}
+													<p class="text-red-500">Invalid AI content format</p>
+												{/await}
+											{:else}
+												<p class="text-gray-500 italic">No AI content available</p>
+											{/if}
 										{/if}
 									</div>
 
@@ -1218,7 +1310,7 @@
 										<button
 											aria-label="bookmark"
 											class={`fa-bookmark cursor-pointer ${
-												bookmarked.has(post.article_url || post.url)
+												bookmarked.has(post.article_url)
 													? 'fas text-yellow-500'
 													: 'far text-gray-600'
 											} hover:text-yellow-500 dark:text-gray-300`}
