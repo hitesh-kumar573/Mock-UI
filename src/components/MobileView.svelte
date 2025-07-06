@@ -198,8 +198,8 @@
 			if (!uid) {
 				url += '?total=20';
 			}
-			// Case: With date range
-			else if (start && end) {
+			// Case: With date range and user is logged in
+			else if (start && end && uid) {
 				url += `?user_id=${uid}&start_date=${start}&end_date=${end}`;
 
 				// Clear old data before setting new
