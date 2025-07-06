@@ -16,7 +16,8 @@
 		userId,
 		journalData,
 		user,
-		newsData
+		newsData,
+		activeTab
 	} from '$lib/stores/ChatStores';
 
 	import FailedNotification from './FailedNotification.svelte';
@@ -30,9 +31,11 @@
 	import MobileJournalView from './MobileJournalView.svelte';
 	import MobileNewsView from './MobileNewsView.svelte';
 	import SectionHeader from './SectionHeader.svelte';
+	import { generateCardImage } from '$lib/utils/generateCardImage';
+	import { generateAndUploadCards, processFetchedArticles } from '$lib/utils/articleProcessor';
+	import AssistedChatView from './AssistedChatView.svelte';
 
 	const baseUrl = import.meta.env.VITE_API_BASE_URL;
-	const baseUrlForCustomQuery = import.meta.env.VITE_API_BASE_URL_FOR_CUSTOM_QUERY;
 
 	let showLoginPopup = false;
 
@@ -100,29 +103,53 @@
 			const today = new Date().toISOString().split('T')[0];
 			console.log('today:', today);
 
-			startDate.set('');
-			endDate.set('');
+			// Check stored date filter only for classical view
+			const savedStart = localStorage.getItem('date_filter_start');
+			const savedEnd = localStorage.getItem('date_filter_end');
+
+			if (savedStart && savedEnd && savedStart !== savedEnd) {
+				startDate.set(savedStart);
+				endDate.set(savedEnd);
+			} else {
+				// User cleared the range
+				startDate.set('');
+				endDate.set('');
+				localStorage.removeItem('date_filter_start');
+				localStorage.removeItem('date_filter_end');
+				console.log('Date range incomplete or cleared — loading default data');
+			}
 
 			flatpickr(calendarRef, {
 				mode: 'range',
 				dateFormat: 'Y-m-d',
 				maxDate: 'today',
-				// defaultDate: [today, today],
-				defaultDate: null, // No default range on first load
+				// defaultDate: null, // No default range on first load
+				defaultDate: savedStart && savedEnd ? [savedStart, savedEnd] : null,
 				allowInput: true, // So user can manually clear
 				onChange: function (selectedDates) {
-					if (selectedDates.length === 2) {
-						startDate.set(selectedDates[0].toISOString().split('T')[0]);
-						endDate.set(selectedDates[1].toISOString().split('T')[0]);
+					if (
+						selectedDates.length === 2 &&
+						selectedDates[0].toISOString().split('T')[0] !==
+							selectedDates[1].toISOString().split('T')[0]
+					) {
+						const start = selectedDates[0].toISOString().split('T')[0];
+						const end = selectedDates[1].toISOString().split('T')[0];
+
+						startDate.set(start);
+						endDate.set(end);
 
 						console.log('start date:', $startDate, 'end date:', $endDate);
 
-						// fetchJournalArticles(); //Fetch on date change
+						// Save to localStorage
+						localStorage.setItem('date_filter_start', start);
+						localStorage.setItem('date_filter_end', end);
 					} else {
 						// User cleared the range
 						startDate.set('');
 						endDate.set('');
-						console.log('Date range cleared');
+						localStorage.removeItem('date_filter_start');
+						localStorage.removeItem('date_filter_end');
+						console.log('Date range incomplete or cleared — loading default data');
 					}
 					// Fetch no matter what — handles both cases
 					fetchJournalArticles();
@@ -155,144 +182,6 @@
 		goto('/login');
 	}
 
-	async function generateCardImage(templateUrl, titleText) {
-		const img = new Image();
-		img.crossOrigin = 'anonymous';
-		img.src = templateUrl;
-
-		await new Promise((resolve) => (img.onload = resolve));
-
-		const canvas = document.createElement('canvas');
-		canvas.width = img.width;
-		canvas.height = img.height;
-		const ctx = canvas.getContext('2d');
-
-		// Draw original image
-		ctx.drawImage(img, 0, 0);
-
-		// Set text style
-		ctx.fillStyle = 'white';
-		ctx.font = '600 45px sans-serif'; // semibold
-		ctx.textAlign = 'center';
-		ctx.textBaseline = 'top';
-
-		// Define column layout
-		const padding = 10;
-		const columnX = canvas.width * 0.3; // Center column starts at 25%
-		const columnWidth = canvas.width * 0.4; // 50% width
-		const textAreaX = columnX + columnWidth / 2; // Center X of middle column
-		const textAreaWidth = columnWidth - 2 * padding;
-		const textAreaY = padding;
-		const textAreaHeight = canvas.height - 2 * padding;
-
-		// Word wrap logic
-		const words = titleText.split(' ');
-		let line = '';
-		const lines = [];
-		for (let n = 0; n < words.length; n++) {
-			const testLine = line + words[n] + ' ';
-			const metrics = ctx.measureText(testLine);
-			const testWidth = metrics.width;
-			if (testWidth > textAreaWidth && n > 0) {
-				lines.push(line);
-				line = words[n] + ' ';
-			} else {
-				line = testLine;
-			}
-		}
-		lines.push(line.trim());
-
-		// Vertical center
-		const lineHeight = 46;
-		const totalTextHeight = lines.length * lineHeight;
-		let y = textAreaY + (textAreaHeight - totalTextHeight) / 2;
-
-		// Draw lines inside center column
-		for (let i = 0; i < lines.length; i++) {
-			ctx.fillText(lines[i], textAreaX, y);
-			y += lineHeight;
-		}
-
-		// Return base64 string
-		return canvas.toDataURL('image/png').split(',')[1];
-	}
-
-	//   NEW: Generate images and post to update card API
-
-	async function generateAndUploadCards(dataArray) {
-		console.log('data', dataArray);
-		const payload = await Promise.all(
-			dataArray.map(async (item, index) => {
-				try {
-					console.log(`Processing item ${index}:`, item);
-
-					const isNews = item.type === 'news';
-
-					// Validate required fields
-					if (!item.template_url || !(isNews ? item.title : item.article_title)) {
-						console.warn('⚠️ Invalid item found:', item);
-						return null; // skip invalid
-					}
-
-					// Decide title to use (for card generation)
-					let titleToUse = isNews ? item.title : item.article_title;
-
-					// Try OpenAI title if article_title is too long (only for journal)
-					if (!isNews && item.article_title.length > 50 && item.openai_content) {
-						try {
-							const parsed = JSON.parse(item.openai_content);
-							if (parsed?.title) {
-								titleToUse = parsed.title;
-								console.log(`📌 Using openai_content title for item ${index}:`, titleToUse);
-							}
-						} catch (e) {
-							console.warn(`⚠️ Failed to parse openai_content for item ${index}`, e);
-						}
-					}
-
-					console.log('title:', titleToUse);
-
-					const base64Image = await generateCardImage(item.template_url, titleToUse);
-					console.log(`✅ base64 (${index}):`, base64Image.slice(0, 50) + '...'); // partial log
-
-					return {
-						article_name: isNews ? item.title : item.article_title,
-						article_type: isNews ? 'news' : 'article',
-						specialization: isNews ? '' : item.specialization || '',
-						card_base64: base64Image
-					};
-				} catch (err) {
-					console.error(`❌ Error generating card for item ${index}:`, err);
-					return null;
-				}
-			})
-		);
-		console.log('payload:', payload);
-		// ❗ Filter out null values (invalid or failed items)
-		const filteredPayload = payload.filter(Boolean);
-		console.log('✅ Final payload:', filteredPayload);
-
-		if (!filteredPayload.length) {
-			console.warn('🚫 No valid cards to upload.');
-			return;
-		}
-		// return;
-
-		// POST request to update_card_url
-		try {
-			const res = await fetch(`${baseUrl}/update_card_url`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(filteredPayload)
-			});
-			const result = await res.json();
-			console.log('Update Card API result:', result);
-			return result;
-		} catch (err) {
-			console.error('Card Update Failed:', err);
-		}
-	}
-
 	async function fetchJournalArticles() {
 		try {
 			// const uid = get(userId);
@@ -302,28 +191,25 @@
 
 			console.log('userId:', uid, 'Start:', start, 'end:', end);
 
-			//TODO:-- use env file variables for urls remove hard coded urls
-			// let url = 'http://45.79.125.99:7879/journal_news_articles';
-
-			// Use environment variable (TODO: move to .env in Vite: import.meta.env.VITE_API_URL)
 			let mainUrl = `${baseUrl}/journal_news_articles`;
-
 			let url = mainUrl;
 
 			// Case: User not registered (userId not set)
 			if (!uid) {
-				// url = 'http://45.79.125.99:7879/journal_news_articles';
 				url += '?total=20';
 			}
 			// Case: With date range
 			else if (start && end) {
 				url += `?user_id=${uid}&start_date=${start}&end_date=${end}`;
+
+				// Clear old data before setting new
+				journalData.set([]);
+				newsData.set([]);
 			}
 			// Case: Without dates, but user is logged in
 			else {
 				url += `?user_id=${uid}`;
 			}
-
 			console.log('url:', url);
 
 			const res = await fetch(url);
@@ -337,87 +223,18 @@
 				return;
 			}
 
-			// Journal Articles
-			const rawJournal = (data?.journal_articles || []).filter(
-				(item) => item.article_title !== 'Issue Information'
-			);
-			const validJournal = rawJournal.filter(
-				(item) => item.card_url && item.card_url.trim() !== '' && item.card_url !== 'null'
-			);
-			const missingJournal = rawJournal.filter(
-				(item) => !item.card_url || item.card_url.trim() === '' || item.card_url === 'null'
-			);
-
-			console.log('raw Journal:', rawJournal);
-			console.log('valid Journal:', validJournal);
-			console.log('missing Journal:', missingJournal);
-
-			// News Articles
-			const rawNews = data?.news_articles || [];
-			const validNews = rawNews.filter(
-				(item) => item.card_url && item.card_url.trim() !== '' && item.card_url !== 'null'
-			);
-			const missingNews = rawNews.filter(
-				(item) => !item.card_url || item.card_url.trim() === '' || item.card_url === 'null'
-			);
-
-			console.log('raw news:', rawNews);
-			console.log('valid news:', validNews);
-			console.log('missing news:', missingNews);
-
-			// Combine missing for generation
-			const allMissing = [
-				...missingJournal.map((item) => ({ ...item, type: 'journal' })),
-				...missingNews.map((item) => ({ ...item, type: 'news' }))
-			];
-
-			console.log('all missing:', allMissing);
-
-			// return;
-
-			let generatedCards = [];
-			if (allMissing.length > 0) {
-				const generated = await generateAndUploadCards(allMissing);
-				generatedCards = generated?.results?.results || [];
-				console.log('generated:', generated);
-			}
-
-			// Split generated cards by type
-			// const generatedJournal = generatedCards.filter((item) => item.type === 'journal');
-			// const generatedNews = generatedCards.filter((item) => item.type === 'news');
-
-			const generatedJournal = generatedCards.filter(
-				(item) => item.specialization && item.specialization.trim() !== ''
-			);
-			const generatedNews = generatedCards.filter(
-				(item) => !item.specialization || item.specialization.trim() === ''
-			);
-
-			console.log('generatedJournal:', generatedJournal);
-			console.log('generatedNews:', generatedNews);
-
-			// Final combine
-			const finalJournal = [...validJournal, ...generatedJournal];
-			const finalNews = [...validNews, ...generatedNews];
-
 			// Set in stores
+			const { finalJournal, finalNews } = await processFetchedArticles(data);
+
+			console.log('finalJournal from parent function:', finalJournal);
+			console.log('finalNews from parent function:', finalNews);
+
 			journalData.set(finalJournal);
 			newsData.set(finalNews);
-
-			console.log('Final Journal Articles:', finalJournal);
-			console.log('Final News Articles:', finalNews);
 		} catch (error) {
 			console.error('Fetch failed:', error);
 		}
 	}
-
-	// onMount(async () => {
-	// 	await initializeNewChat();
-	// 	await fetchUserChats();
-	// 	// Todo2:-- get users chat
-	// 	// URL/chats/{user_id}
-	// 	// call this api here to get all chats of particular user
-	// });
 
 	onMount(async () => {
 		await fetchUserChats(); // Always fetch first
@@ -565,15 +382,6 @@
 			currentUserToken = localStorage.getItem(`token-${currentUserId}`);
 		}
 
-		// 	chats.subscribe((c) => {
-		// 		const chat = c.find((ch) => ch.id === id);
-		// 		if (chat) {
-		// 			activeChatId.set(chat.id);
-		// 			messages.set(chat.messages);
-		// 		}
-		// 	})();
-		// }
-
 		try {
 			const res = await fetch(`${baseUrl}/messages/${id}`, {
 				headers: {
@@ -593,13 +401,6 @@
 				const data = await res.json();
 				console.log('data:', data);
 
-				// parsedMessages = data.flatMap((item) => [
-				// 	{ sender: 'user', text: item.user_text },
-				// 	{
-				// 		sender: 'bot',
-				// 		articles: item.response_json?.results || []
-				// 	}
-				// ]);
 				parsedMessages = data.flatMap((item) => {
 					// 🌟 Normalize and map articles
 					const articles = (item.response_json?.results || []).map((article) => {
@@ -664,17 +465,6 @@
 		if (currentUserId) {
 			currentUserToken = localStorage.getItem(`token-${currentUserId}`);
 		}
-
-		// call this api here to update the title of the chat by user manually
-		// 	chats.update((c) => {
-		// 		return c.map((chat) => {
-		// 			if (chat.id === chatId && chat.title === 'New Chat') {
-		// 				return { ...chat, title: newTitle.slice(0, 25) };
-		// 			}
-		// 			return chat;
-		// 		});
-		// 	});
-		// }
 
 		try {
 			const res = await fetch(`${baseUrl}/chats/change_title`, {
@@ -1096,311 +886,193 @@
 <LoginPopNotification visible={showLoginPopup} />
 
 <div class="flex min-h-[100dvh] flex-col font-sans md:hidden">
-	<!-- HEADER: Calendar + Toggle -->
-	<div
-		class="fixed top-0 right-0 left-0 z-10 flex items-center justify-between bg-white px-2 py-4 shadow dark:bg-gray-800"
-	>
-		<!-- Calendar (only in classical view) -->
-
-		<!-- {#if isMobileView === 'assisted'} -->
-		<button
-			aria-label="drawer button"
-			on:click={() => showMobileDrawer.set(!$showMobileDrawer)}
-			class="text-gray-700 dark:text-white"
-		>
-			<i class="fas fa-bars text-xl"></i>
-		</button>
-		<!-- {/if} -->
-		{#if $isMobileView === 'classical'}
-			<div class="relative flex w-fit items-center text-xs">
-				<input
-					type="text"
-					placeholder="Select range"
-					class="w-full rounded-lg border p-2 pr-6 focus:ring-0 focus:outline-none active:right-0 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-					bind:this={calendarRef}
-					readonly
-				/>
-				<!-- Calendar Icon -->
-				<i class="fas fa-calendar-alt pointer-events-none absolute top-3 right-3 text-gray-500"></i>
-			</div>
-		{/if}
-		<div class="flex items-center justify-between gap-2">
+	<!-- HEADER: Calendar + Toggle + Tabs -->
+	<div class="fixed top-0 right-0 left-0 z-10 bg-white shadow dark:bg-gray-800">
+		<!-- Top Row: Calendar + View Toggle + User Menu -->
+		<div class="flex items-center justify-between px-2 py-4">
 			<button
-				on:click={() => isMobileView.set($isMobileView === 'classical' ? 'assisted' : 'classical')}
-				class="rounded-md bg-blue-500 px-2 py-2 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 active:text-white dark:text-white"
+				aria-label="drawer button"
+				on:click={() => showMobileDrawer.set(!$showMobileDrawer)}
+				class="text-gray-700 dark:text-white"
 			>
-				{$isMobileView === 'classical' ? 'Assisted' : 'Classical'}
+				<i class="fas fa-bars text-xl"></i>
 			</button>
+			<!-- Left Side: Drawer or Calendar -->
+			{#if $isMobileView === 'classical'}
+				<div class="relative flex w-fit items-center text-xs">
+					<input
+						type="text"
+						placeholder="Select range"
+						class="w-full rounded-lg border p-2 pr-6 focus:ring-0 focus:outline-none active:right-0 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+						bind:this={calendarRef}
+						readonly
+					/>
+					<i class="fas fa-calendar-alt pointer-events-none absolute top-3 right-3 text-gray-500"
+					></i>
+				</div>
+			{/if}
 
-			{#if $user.token}
-				<!-- Logged-in View -->
-				<div class="relative">
-					<button
-						on:click={() => (showDropdown = !showDropdown)}
-						class="rounded-md bg-blue-500 px-2 py-2 text-sm text-white hover:bg-blue-600"
-					>
-						<span class="flex max-w-[60px] items-center justify-between gap-1 truncate">
-							<i class="fas fa-user text-xs text-white"></i>
-							{#if $user.name}
-								<span class="truncate overflow-hidden whitespace-nowrap">
-									{$user.name}
-								</span>
-							{:else}
-								<span class="truncate overflow-hidden whitespace-nowrap">
-									{$user.id}
-								</span>
-							{/if}
-						</span>
-					</button>
+			<!-- Right Side: View Toggle + Login/Profile -->
+			<div class="flex items-center gap-2">
+				<button
+					on:click={() =>
+						isMobileView.set($isMobileView === 'classical' ? 'assisted' : 'classical')}
+					class="rounded-md bg-blue-500 px-2 py-2 text-sm text-white hover:bg-blue-600"
+				>
+					{$isMobileView === 'classical' ? 'Assisted' : 'Classical'}
+				</button>
 
-					{#if showDropdown}
-						<div
-							class="absolute right-0 z-50 mt-2 w-48 rounded-md bg-white shadow-lg dark:bg-gray-700"
+				{#if $user.token}
+					<!-- Logged-in View -->
+					<div class="relative">
+						<button
+							on:click={() => (showDropdown = !showDropdown)}
+							class="rounded-md bg-blue-500 px-2 py-2 text-sm text-white hover:bg-blue-600"
 						>
-							<div class="px-4 py-2 text-sm text-gray-700 dark:text-white">
+							<span class="flex max-w-[60px] items-center justify-between gap-1 truncate">
+								<i class="fas fa-user text-xs text-white"></i>
 								{#if $user.name}
-									<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
-										<strong>{$user.name}</strong>
-									</p>
-									<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
-										{$user.id}
-									</p>
-								{:else if $user.email}
-									<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
-										{$user.email}
-									</p>
+									<span class="truncate overflow-hidden whitespace-nowrap">
+										{$user.name}
+									</span>
 								{:else}
-									<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
+									<span class="truncate overflow-hidden whitespace-nowrap">
 										{$user.id}
-									</p>
+									</span>
 								{/if}
-							</div>
-							<div class="px-4 py-2 text-sm text-gray-700 dark:text-white">
+							</span>
+						</button>
+
+						{#if showDropdown}
+							<div
+								class="absolute right-0 z-50 mt-2 w-48 rounded-md bg-white shadow-lg dark:bg-gray-700"
+							>
+								<div class="px-4 py-2 text-sm text-gray-700 dark:text-white">
+									{#if $user.name}
+										<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
+											<strong>{$user.name}</strong>
+										</p>
+										<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
+											{$user.id}
+										</p>
+									{:else if $user.email}
+										<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
+											{$user.email}
+										</p>
+									{:else}
+										<p class="max-w-[180px] truncate overflow-hidden whitespace-nowrap">
+											{$user.id}
+										</p>
+									{/if}
+								</div>
+								<div class="px-4 py-2 text-sm text-gray-700 dark:text-white">
+									<button
+										class="cursor-pointer"
+										on:click={() => {
+											console.log('Updating...');
+											goto('/update-profile');
+										}}
+									>
+										Edit Profile
+									</button>
+								</div>
+								<hr class="my-1" />
 								<button
-									class="cursor-pointer"
-									on:click={() => {
-										console.log('Updating...');
-										goto('/update-profile');
-									}}
+									on:click={logout}
+									class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700"
 								>
-									Edit Profile
+									Logout
 								</button>
 							</div>
-							<hr class="my-1" />
-							<button
-								on:click={logout}
-								class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700"
-							>
-								Logout
-							</button>
-						</div>
-					{/if}
-				</div>
-			{:else}
-				<button
-					on:click={() => {
-						console.log('Logging In...');
-						goto('/login');
-					}}
-					class="rounded-md bg-blue-500 px-2 py-2 text-sm text-gray-700 hover:bg-blue-600 active:bg-blue-600 dark:text-white"
-				>
-					<i class="fas fa-user text-white"></i>
-					Login
-				</button>
-			{/if}
+						{/if}
+					</div>
+				{:else}
+					<button
+						on:click={() => goto('/login')}
+						class="rounded-md bg-blue-500 px-2 py-2 text-sm text-white"
+					>
+						<i class="fas fa-user text-white"></i> Login
+					</button>
+				{/if}
+			</div>
 		</div>
+
+		<!-- Tabs Row: All / News / Journals -->
+		{#if $isMobileView === 'classical'}
+			<div
+				class="flex justify-center gap-5 border-t border-gray-200 px-4 py-3 dark:border-gray-700 dark:bg-gray-900"
+			>
+				<button
+					class={`rounded-full px-8 py-1.5 text-sm font-semibold ${
+						$activeTab === 'all'
+							? 'bg-blue-500 text-white'
+							: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-white'
+					}`}
+					on:click={() => activeTab.set('all')}
+				>
+					All
+				</button>
+
+				<button
+					class={`rounded-full px-8 py-1 text-sm font-semibold ${
+						$activeTab === 'news'
+							? 'bg-blue-500 text-white'
+							: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-white'
+					}`}
+					on:click={() => activeTab.set('news')}
+				>
+					News
+				</button>
+
+				<button
+					class={`rounded-full px-8 py-1 text-sm font-semibold ${
+						$activeTab === 'journal'
+							? 'bg-blue-500 text-white'
+							: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-white'
+					}`}
+					on:click={() => activeTab.set('journal')}
+				>
+					Journals
+				</button>
+			</div>
+		{/if}
 	</div>
 
 	<!-- CLASSICAL VIEW -->
 	{#if $isMobileView === 'classical'}
-		{#if $journalData.length > 0}
+		{#if $activeTab === 'all'}
+			<MobileJournalView {expandedCards} {toggleCard} {toggleBookmark} {bookmarked} user={$user} />
+
+			<MobileNewsView {expandedCards} {toggleCard} {toggleBookmark} {bookmarked} />
+		{:else if $activeTab === 'news'}
+			<MobileNewsView
+				{expandedCards}
+				{toggleCard}
+				{toggleBookmark}
+				{bookmarked}
+				infiniteScroll={true}
+			/>
+		{:else if $activeTab === 'journal'}
 			<MobileJournalView
-				journalData={$journalData}
 				{expandedCards}
 				{toggleCard}
 				{toggleBookmark}
 				{bookmarked}
 				user={$user}
-			/>
-		{/if}
-
-		{#if $newsData.length > 0}
-			<MobileNewsView
-				newsData={$newsData}
-				{expandedCards}
-				{toggleCard}
-				{toggleBookmark}
-				{bookmarked}
+				infiniteScroll={true}
 			/>
 		{/if}
 	{/if}
 
 	<!-- ASSISTED VIEW (ChatGPT-like) -->
 	{#if $isMobileView === 'assisted'}
-		<div class="relative flex flex-1 flex-col bg-white dark:bg-gray-900">
-			<!-- Chat area -->
-			<div
-				class="h-auto max-h-[79vh] flex-1 overflow-y-auto p-2 py-2 pt-[12vh]"
-				bind:this={chatContainer}
-			>
-				{#each $messages as msg}
-					{#if msg.articles}
-						<!-- Custom card rendering -->
-						<div class="my-2 space-y-3">
-							{#each msg.articles as post, index}
-								<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">
-									<!-- Post Image -->
-									<a href={post.article_url} rel="noopener noreferrer">
-										<img
-											src={post.card_url ? post.card_url : post.template_url}
-											alt="post"
-											class="h-[28vh] w-full cursor-pointer rounded-t-md object-cover"
-										/>
-									</a>
-
-									<!-- Content -->
-									<div class="px-4 py-2 text-gray-800 dark:text-gray-200">
-										{#if post.article_type === 'news'}
-											<!-- News Format -->
-											<p class="font-semibold"><strong>Title:</strong> {post.title}</p>
-
-											{#if post.summary}
-												{#if expandedCards.has(index)}
-													<p><strong>Summary:</strong> {post.summary}</p>
-												{/if}
-											{:else}
-												<p class="text-gray-500 italic">No summary available</p>
-											{/if}
-										{:else}
-											<!-- Journal/AI Summary Format -->
-											<h3 class="text-md mb-1 font-semibold">Title: {post.article_title}</h3>
-											{#if post.openai_content}
-												{#await JSON.parse(post.openai_content) then parsed}
-													<div class="transition-max-height space-y-1 overflow-hidden">
-														{#if parsed.objective?.length}
-															<p><strong>Objective:</strong> {parsed.objective.join(', ')}</p>
-														{/if}
-														{#if expandedCards.has(index)}
-															{#if parsed.results}
-																<p><strong>Results:</strong> {parsed.results}</p>
-															{/if}
-															{#if parsed.conclusion?.length}
-																<p><strong>Conclusion:</strong> {parsed.conclusion.join(', ')}</p>
-															{/if}
-															{#if $user.token && parsed.relevance_for_doctor?.length}
-																<p>
-																	<strong>Relevance For Doctor:</strong>
-																	{parsed.relevance_for_doctor.join(', ')}
-																</p>
-															{/if}
-														{/if}
-													</div>
-												{:catch}
-													<p class="text-red-500">Invalid AI content format</p>
-												{/await}
-											{:else}
-												<p class="text-gray-500 italic">No AI content available</p>
-											{/if}
-										{/if}
-									</div>
-
-									<!-- Actions: Bookmark & Read More -->
-									<div class="relative flex items-center justify-between px-4 py-2">
-										<!-- Bookmark -->
-										<button
-											aria-label="bookmark"
-											class={`fa-bookmark cursor-pointer ${
-												bookmarked.has(post.article_url)
-													? 'fas text-yellow-500'
-													: 'far text-gray-600'
-											} hover:text-yellow-500 dark:text-gray-300`}
-											on:click={() => toggleBookmark(post)}
-										></button>
-										<!-- Read More / Read Less -->
-										<button
-											class="inline-block rounded-md bg-blue-500 px-2 py-1 text-sm font-medium text-white transition duration-200 hover:bg-blue-600 focus:ring-0 focus:outline-none dark:focus:ring-offset-gray-800"
-											on:click={() => toggleCard(index)}
-										>
-											{#if expandedCards.has(index)}
-												Read Less <i class="fas fa-chevron-up ml-1"></i>
-											{:else}
-												Read More <i class="fas fa-chevron-down ml-1"></i>
-											{/if}
-										</button>
-									</div>
-								</div>
-							{/each}
-						</div>
-					{:else if msg.type === 'typing'}
-						<!-- Typing animation -->
-						<div
-							class="my-2 w-fit max-w-[75%] rounded-lg bg-gray-200 p-3 text-sm dark:bg-gray-700 dark:text-white"
-						>
-							<span class="flex items-center gap-1 space-x-1">
-								<span>Thinking</span>
-								<span class="typing-dots flex items-center space-x-1">
-									<span class="dot"></span>
-									<span class="dot"></span>
-									<span class="dot"></span>
-								</span>
-							</span>
-						</div>
-					{:else}
-						<!-- Regular text message -->
-						<div
-							class={`my-2 w-fit max-w-[75%] rounded-lg p-3 text-sm ${
-								msg.sender === 'user'
-									? 'ml-auto bg-blue-500 text-white'
-									: 'bg-gray-200 dark:bg-gray-700 dark:text-white'
-							}`}
-						>
-							{msg.text}
-						</div>
-					{/if}
-				{/each}
-			</div>
-
-			<!-- Input -->
-			<div class="absolute bottom-0 mb-3 flex w-full flex-col items-center p-2">
-				<div
-					class="relative flex w-full flex-col items-center justify-between rounded-3xl border bg-white focus:ring-0 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-				>
-					<div class="w-full">
-						<textarea
-							bind:value={$userInput}
-							rows="1"
-							placeholder="Ask something..."
-							class="w-full resize-none p-3 focus:ring-0 focus:outline-none active:ring-0"
-							style="overflow: hidden;"
-							on:input={(e) => {
-								autoResize(e);
-								scrollToBottom(); // scroll after resize
-							}}
-							on:keydown={(e) => {
-								if (e.key === 'Enter' && !e.shiftKey) {
-									e.preventDefault(); // ⛔ prevent the new line
-									sendMessage();
-								}
-							}}
-						></textarea>
-					</div>
-
-					<div class="flex w-full items-center justify-between gap-2 px-4 py-1">
-						<!-- Mic button -->
-						<button aria-label="mic button" class="text-gray-500 hover:text-blue-500">
-							<i class="fas fa-microphone text-xl"></i>
-						</button>
-						<button
-							on:click={sendMessage}
-							aria-label="send message button"
-							class="ml-2 rounded-full bg-blue-500 px-3.5 py-2 text-white hover:bg-blue-600 active:bg-blue-600"
-						>
-							<i class="fas fa-arrow-up"></i>
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
+		<AssistedChatView
+			{expandedCards}
+			{toggleCard}
+			{toggleBookmark}
+			{bookmarked}
+			on:send={sendMessage}
+		/>
 	{/if}
 
 	{#if $showMobileDrawer}
@@ -1468,13 +1140,6 @@
 									>
 										{chat.title}
 									</button>
-									<!-- <button
-										aria-label="delete button"
-										on:click={() => deleteChat(chat.id)}
-										class="ml-2 text-red-500 hover:text-red-700"
-									>
-										<i class="fas fa-trash-alt"></i>
-									</button> -->
 
 									<!-- 3-dots menu -->
 									<div class="relative z-10 ml-2">

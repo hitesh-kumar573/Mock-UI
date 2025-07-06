@@ -1,33 +1,130 @@
 <script>
 	//@ts-nocheck
+	import { journalData, journalOffset } from '$lib/stores/ChatStores';
+	import { onMount } from 'svelte';
 	import SectionHeader from './SectionHeader.svelte';
-	export let journalData = [];
+	import { processFetchedArticles } from '$lib/utils/articleProcessor';
+	import { get } from 'svelte/store';
+
+	export let infiniteScroll = false;
+	// export let journalData = [];
 	export let expandedCards;
 	export let toggleCard;
 	export let toggleBookmark;
 	export let bookmarked;
 	export let user;
+
+	let timedOut = false;
+
+	onMount(() => {
+		const timeout = setTimeout(() => {
+			if (get(journalData).length === 0) {
+				timedOut = true;
+			}
+		}, 3000);
+
+		// Optional: clear timeout if component is destroyed early
+		return () => clearTimeout(timeout);
+	});
+
+	let observer;
+	let sentinel;
+	const baseUrl = import.meta.env.VITE_API_BASE_URL;
+
+	$: if (sentinel) {
+		console.log('Sentinel is ready:', sentinel);
+		observer.observe(sentinel);
+	}
+
+	onMount(() => {
+		if (!infiniteScroll) return;
+
+		observer = new IntersectionObserver((entries) => {
+			if (entries[0].isIntersecting) {
+				loadMoreJournals();
+			}
+		});
+
+		// observer.observe(sentinel);
+		if (sentinel) {
+			observer.observe(sentinel);
+		}
+
+		return () => {
+			if (sentinel) observer.unobserve(sentinel);
+		};
+	});
+
+	async function loadMoreJournals() {
+		journalOffset.update((prev) => {
+			const next = prev + 10;
+			fetchMoreJournals(next);
+			return next;
+		});
+	}
+
+	async function fetchMoreJournals(offset) {
+		const url = `${baseUrl}/journal_news_articles?total=10&offset=10`;
+
+		const res = await fetch(url);
+		const data = await res.json();
+		console.log('data from journal component:', data);
+
+		const { finalJournal } = await processFetchedArticles(data);
+		// const moreJournals = data?.journal_articles || [];
+
+		console.log('more final Journal:', finalJournal);
+
+		if (finalJournal.length > 0) {
+			journalData.update((current) => [...current, ...finalJournal]);
+		}
+	}
 </script>
 
-<div class="flex-1 overflow-y-auto bg-gray-100 p-1 pt-[12vh] dark:bg-gray-900">
-	{#if journalData?.length === 0}
-		<!-- Spinner while data is loading -->
-		<div class="flex h-[60vh] items-center justify-center">
-			<div
-				class="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"
-			></div>
-		</div>
+<div class="flex-1 overflow-y-auto bg-gray-100 p-1 pt-[19dvh] dark:bg-gray-900">
+	{#if $journalData.length === 0}
+		{#if timedOut}
+			<!-- Don't show anything if timed out and no data -->
+		{:else}
+			<SectionHeader title="Journal Articles" />
+
+			<!-- Spinner -->
+			<div class="flex h-[60vh] items-center justify-center">
+				<div
+					class="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"
+				></div>
+			</div>
+		{/if}
 	{:else}
 		<SectionHeader title="Journal Articles" />
-		{#each journalData as post, index}
+
+		{#each $journalData as post, index}
 			<div class="mb-4 rounded-lg bg-white shadow-sm dark:bg-gray-800">
 				<!-- Post Image -->
 				<a href={post.article_url} rel="noopener noreferrer">
-					<img
-						src={post.card_url ? post.card_url : post.template_url}
+					<!-- <img
+						src={post.preview_card_url || post.card_url || post.template_url}
 						alt="post"
 						class="h-[28vh] w-full cursor-pointer rounded-t-md object-cover"
-					/>
+					/> -->
+
+					{#if post.preview_card_url && post.preview_card_url.startsWith('data:image')}
+						<!-- Render base64 image -->
+						<img
+							src={post.preview_card_url}
+							alt="Generated preview"
+							loading="lazy"
+							class="h-[28vh] w-full cursor-pointer rounded-t-md object-cover"
+						/>
+					{:else}
+						<!-- Render normal image -->
+						<img
+							src={post.card_url || post.template_url}
+							alt="Post image"
+							loading="lazy"
+							class="h-[28vh] w-full cursor-pointer rounded-t-md object-cover"
+						/>
+					{/if}
 				</a>
 
 				<!-- Actions Bar -->
@@ -84,5 +181,8 @@
 				</div>
 			</div>
 		{/each}
+
+		<!-- This is the bottom sentinel -->
+		<div bind:this={sentinel} class="h-1"></div>
 	{/if}
 </div>

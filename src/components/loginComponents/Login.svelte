@@ -1,7 +1,11 @@
 <script>
 	//@ts-nocheck
 	import { goto } from '$app/navigation';
-	import { failedNotificationMessage, failedNotificationVisible } from '$lib/stores/ChatStores';
+	import {
+		failedNotificationMessage,
+		failedNotificationVisible,
+		user
+	} from '$lib/stores/ChatStores';
 	import FailedNotification from '../FailedNotification.svelte';
 
 	const baseUrl = import.meta.env.VITE_API_BASE_URL;
@@ -12,6 +16,22 @@
 	let otp = '';
 	let message = '';
 	let showOtp = false;
+
+	function logout() {
+		let userId = localStorage.getItem('user_id');
+		console.log('Logging out user with ID:', userId);
+
+		if (userId) {
+			localStorage.removeItem(`user_name-${userId}`);
+			localStorage.removeItem(`user_designation-${userId}`);
+			localStorage.removeItem(`user_email-${userId}`);
+			localStorage.removeItem(`token-${userId}`);
+			localStorage.removeItem('user_id');
+		}
+
+		user.set({ id: null, name: null, email: null, token: null });
+		goto('/login');
+	}
 
 	async function sendOtp() {
 		console.log('phone:', phone);
@@ -86,7 +106,7 @@
 		// Step 5: Send OTP
 		try {
 			// const otpRes = await fetch(`${frontendUrl}/api/send-otp`, {
-				const otpRes = await fetch('/api/send-otp', {
+			const otpRes = await fetch('/api/send-otp', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ phone: fullPhone })
@@ -118,7 +138,7 @@
 
 		try {
 			const res = await fetch('/api/verify-otp', {
-			// const res = await fetch(`${frontendUrl}/api/verify-otp`, {
+				// const res = await fetch(`${frontendUrl}/api/verify-otp`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ phone: fullPhone, code: otp })
@@ -167,6 +187,16 @@
 						}
 
 						message = 'Login successful!';
+
+						// Auto logout after 24 hours
+						setTimeout(
+							() => {
+								logout();
+								console.log(`Auto-logged out after 1 day i.e.:- ${24 * 60 * 60 * 1000}`);
+							},
+							24 * 60 * 60 * 1000
+						);
+
 						goto('/');
 					} else {
 						console.error('Login failed: Incomplete user data received.');

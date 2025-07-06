@@ -36,6 +36,24 @@ if (typeof window !== 'undefined') {
 	});
 }
 
+let savedTab = 'all';
+
+if (typeof localStorage !== 'undefined') {
+	savedTab = localStorage.getItem('activeTab') || 'all';
+}
+
+export const activeTab = writable(savedTab); // 'all', 'news', or 'journal'
+
+// Keep localStorage in sync — only in client
+if (typeof localStorage !== 'undefined') {
+	activeTab.subscribe((value) => {
+		localStorage.setItem('activeTab', value);
+	});
+}
+
+export const journalOffset = writable(0); // for storing offset data
+export const newsOffset = writable(0); // for storing offset data
+
 export const journalData = writable([]); // to hold fetched data
 export const newsData = writable([]); // to hold fetched data
 export const userId = writable('1'); // Assuming default or dynamic user ID
