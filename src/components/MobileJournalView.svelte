@@ -31,10 +31,10 @@
 	let sentinel;
 	const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
-	$: if (sentinel) {
-		console.log('Sentinel is ready:', sentinel);
-		observer.observe(sentinel);
-	}
+	// $: if (sentinel && observer) {
+	// 	console.log('Sentinel is ready:', sentinel);
+	// 	observer.observe(sentinel);
+	// }
 
 	onMount(() => {
 		if (!infiniteScroll) return;
