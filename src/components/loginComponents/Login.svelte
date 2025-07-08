@@ -17,6 +17,9 @@
 	let message = '';
 	let showOtp = false;
 
+	let isSendingOtp = false;
+	let isVerifyingOtp = false;
+
 	function logout() {
 		let userId = localStorage.getItem('user_id');
 		console.log('Logging out user with ID:', userId);
@@ -34,6 +37,7 @@
 	}
 
 	async function sendOtp() {
+		isSendingOtp = true;
 		console.log('phone:', phone);
 
 		// Step 1: Sanitize phone
@@ -45,6 +49,7 @@
 			failedNotificationMessage.set(message);
 			failedNotificationVisible.set(true);
 			setTimeout(() => failedNotificationVisible.set(false), 4000);
+			isSendingOtp = false;
 			return;
 		}
 
@@ -68,6 +73,7 @@
 		} catch (err) {
 			console.error('Error checking user existence:', err);
 			message = 'Server error. Try again.';
+			isSendingOtp = false;
 			return;
 		}
 
@@ -92,6 +98,7 @@
 					failedNotificationMessage.set(message);
 					failedNotificationVisible.set(true);
 					setTimeout(() => failedNotificationVisible.set(false), 4000);
+					isSendingOtp = false;
 					return;
 				}
 
@@ -99,6 +106,7 @@
 			} catch (err) {
 				console.error('Signup failed:', err);
 				message = 'Signup failed. Try again.';
+				isSendingOtp = false;
 				return;
 			}
 		}
@@ -123,14 +131,18 @@
 				failedNotificationMessage.set(message);
 				failedNotificationVisible.set(true);
 				setTimeout(() => failedNotificationVisible.set(false), 4000);
+				isSendingOtp = false;
 			}
 		} catch (err) {
 			console.error('OTP sending failed:', err);
 			message = 'Something went wrong while sending OTP.';
+			isSendingOtp = false;
 		}
+		isSendingOtp = false;
 	}
 
 	async function verifyOtp() {
+		isVerifyingOtp = true;
 		// Sanitize and prepend +91
 		const sanitizedPhone = phone.replace(/\D/g, '');
 		const fullPhone = `+91${sanitizedPhone}`;
@@ -201,14 +213,17 @@
 					} else {
 						console.error('Login failed: Incomplete user data received.');
 						message = loginData.error || 'Login failed after verification.';
+						isVerifyingOtp = false;
 					}
 				}
 			} else {
 				message = data.error || 'Invalid OTP';
+				isVerifyingOtp = false;
 			}
 		} catch (err) {
 			console.error('OTP verification or login error:', err);
 			message = 'Something went wrong. Please try again.';
+			isVerifyingOtp = false;
 		}
 
 		// Show error toast if needed
@@ -219,6 +234,7 @@
 				failedNotificationVisible.set(false);
 			}, 4000);
 		}
+		isVerifyingOtp = false;
 	}
 
 	function toggleOtpVisibility() {
@@ -273,9 +289,24 @@
 
 				<button
 					type="submit"
-					class="w-full rounded-lg bg-blue-600 p-3 text-white transition hover:bg-blue-700"
+					class="flex w-full items-center justify-center gap-1 rounded-lg bg-blue-600 p-3 text-white transition hover:bg-blue-700"
+					disabled={isSendingOtp}
 				>
-					Send OTP
+					<!-- Send OTP -->
+					{#if isSendingOtp}
+						<!-- <span class="loader mr-2"></span> Sending... -->
+						<!-- <i class="fas fa-spinner fa-spin"></i> Sending... -->
+						<div class="flex items-center justify-center gap-2">
+							<span>Sending</span>
+							<div class="typing-dots">
+								<div class="dot"></div>
+								<div class="dot"></div>
+								<div class="dot"></div>
+							</div>
+						</div>
+					{:else}
+						Send OTP
+					{/if}
 				</button>
 			</form>
 		{:else}
@@ -303,11 +334,156 @@
 
 				<button
 					type="submit"
-					class="w-full rounded-lg bg-green-600 p-3 text-white transition hover:bg-green-700"
+					class="flex w-full items-center justify-center gap-1 rounded-lg bg-green-600 p-3 text-white transition hover:bg-green-700"
+					disabled={isVerifyingOtp}
 				>
-					Verify OTP
+					{#if isVerifyingOtp}
+						<!-- <span class="loader mr-2"></span> Verifying... -->
+						<!-- <i class="fas fa-spinner fa-spin"></i> Verifying... -->
+						<div class="flex items-center justify-center gap-2">
+							<span>Verifying</span>
+							<div class="typing-dots">
+								<div class="dot"></div>
+								<div class="dot"></div>
+								<div class="dot"></div>
+							</div>
+						</div>
+					{:else}
+						Verify OTP
+					{/if}
 				</button>
 			</form>
 		{/if}
 	</div>
 </div>
+
+<style>
+	.typing-dots {
+		display: flex;
+		align-items: center;
+		justify-content: start;
+		gap: 4px;
+	}
+
+	.typing-dots .dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		animation: blink 1.4s infinite both;
+	}
+
+	@media (prefers-color-scheme: light) {
+		.typing-dots .dot {
+			background-color: #333;
+		}
+	}
+	@media (prefers-color-scheme: dark) {
+		.typing-dots .dot {
+			background-color: white;
+		}
+	}
+
+	.typing-dots .dot:nth-child(1) {
+		animation-delay: 0s;
+	}
+	.typing-dots .dot:nth-child(2) {
+		animation-delay: 0.2s;
+	}
+	.typing-dots .dot:nth-child(3) {
+		animation-delay: 0.4s;
+	}
+
+	@keyframes blink {
+		0% {
+			opacity: 0.2;
+			transform: scale(1);
+		}
+		50% {
+			opacity: 1;
+			transform: scale(1.3);
+		}
+		100% {
+			opacity: 0.2;
+			transform: scale(1);
+		}
+	}
+
+	.loader {
+		border: 3px solid #f3f3f3;
+		border-top: 3px solid #3498db;
+		border-radius: 50%;
+		width: 16px;
+		height: 16px;
+		animation: spin 1s linear infinite;
+		display: inline-block;
+	}
+	@keyframes spin {
+		0% {
+			transform: rotate(0deg);
+		}
+		100% {
+			transform: rotate(360deg);
+		}
+	}
+
+	@keyframes float1 {
+		0% {
+			transform: translateY(0px) rotate(0deg);
+		}
+		50% {
+			transform: translateY(-20px) rotate(5deg);
+		}
+		100% {
+			transform: translateY(0px) rotate(0deg);
+		}
+	}
+	@keyframes float2 {
+		0% {
+			transform: translateY(0px) rotate(0deg);
+		}
+		50% {
+			transform: translateY(15px) rotate(-5deg);
+		}
+		100% {
+			transform: translateY(0px) rotate(0deg);
+		}
+	}
+	@keyframes float3 {
+		0% {
+			transform: translateY(0px) scale(1);
+		}
+		50% {
+			transform: translateY(-10px) scale(1.05);
+		}
+		100% {
+			transform: translateY(0px) scale(1);
+		}
+	}
+
+	.animate-float1 {
+		animation: float1 6s ease-in-out infinite;
+	}
+	.animate-float2 {
+		animation: float2 8s ease-in-out infinite;
+	}
+	.animate-float3 {
+		animation: float3 5s ease-in-out infinite;
+	}
+
+	@keyframes gradient-x {
+		0% {
+			background-position: 0% 50%;
+		}
+		50% {
+			background-position: 100% 50%;
+		}
+		100% {
+			background-position: 0% 50%;
+		}
+	}
+
+	.animate-gradient-x {
+		background-size: 300% 300%;
+		animation: gradient-x 4s ease-in-out infinite;
+	}
+</style>

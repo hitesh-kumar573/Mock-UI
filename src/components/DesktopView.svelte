@@ -274,7 +274,8 @@
 					class="scrollbar-thin dark:scrollbar-thumb-gray-600 dark:scrollbar-track-transparent mx-auto w-full max-w-[60vw] overflow-y-auto"
 					style="min-height: 300px; max-height: 400px;"
 				>
-					{#each $messages as msg (msg.text)}
+					<!-- {#each $messages as msg (msg.text)} -->
+					{#each $messages as msg, index (index)}
 						<div class="flex">
 							<div
 								class={`my-2 max-w-[60%] rounded-lg px-4 py-2 ${
